@@ -1,0 +1,32 @@
+# --- Dependencies ---
+node_modules/
+
+# --- Environment Files ---
+.env
+*.local
+.env.*
+
+# --- Build & Output ---
+dist/
+dist-ssr/
+build/
+*.out
+
+# --- Logs ---
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# --- Editor & OS ---
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# --- Database ---
+*.sql
+*.sqlite
