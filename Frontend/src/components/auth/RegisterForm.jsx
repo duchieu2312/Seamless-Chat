@@ -1,4 +1,5 @@
 import { useForm } from "react-hook-form";
+import axios from "axios";
 import InputField from "./InputField";
 
 export default function RegisterForm({ isVisible }) {
@@ -6,12 +7,31 @@ export default function RegisterForm({ isVisible }) {
     register,
     handleSubmit,
     watch,
-    formState: { errors },
+    formState: { errors, isSubmitting },
+    reset,
   } = useForm();
 
   const password = watch("password");
 
-  const onSubmit = (data) => console.log("Register Data:", data);
+  const onSubmit = async (data) => {
+    try {
+      const response = await axios.post(
+        "http://localhost:5000/api/auth/register",
+        {
+          username: data.username,
+          email: data.email,
+          password: data.password,
+        },
+      );
+
+      alert(response.data.message);
+      reset();
+    } catch (error) {
+      const errorMessage =
+        error.response?.data?.message || "Something went wrong!";
+      alert("Error: " + errorMessage);
+    }
+  };
 
   return (
     <div
@@ -60,8 +80,11 @@ export default function RegisterForm({ isVisible }) {
           errors={errors}
           validate={(val) => val === password || "Passwords do not match"}
         />
-        <button className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-black transition-all cursor-pointer shadow-lg mt-4 active:scale-95">
-          Get Started
+        <button
+          disabled={isSubmitting}
+          className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-black transition-all cursor-pointer shadow-lg mt-4 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isSubmitting ? "Creating..." : "Get Started"}
         </button>
       </form>
     </div>
