@@ -1,7 +1,7 @@
 import pool from "../config/db.js";
 import bcrypt from "bcryptjs";
 
-export default async function registerUser(req, res) {
+export async function registerUser(req, res) {
   const { username, email, password } = req.body;
 
   try {
@@ -33,5 +33,37 @@ export default async function registerUser(req, res) {
   } catch (error) {
     console.error("Register Error:", error);
     res.status(500).json({ message: "Server error during registration" });
+  }
+}
+
+export async function loginUser(req, res) {
+  const { email, password } = req.body;
+
+  try {
+    const result = await pool.query("SELECT * FROM users WHERE email = $1", [
+      email,
+    ]);
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(401).json({ message: "Invalid Email or Password" });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid Email or Password" });
+    }
+
+    res.json({
+      message: "Login successful",
+      user: {
+        id: user.id,
+        username: user.username,
+      },
+    });
+  } catch (error) {
+    console.error("Login Error:", error);
+    res.status(500).json({ message: "Server error during login" });
   }
 }
