@@ -1,8 +1,25 @@
 import pool from "../config/db.js";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+
+const isProd = process.env.NODE_ENV === "production";
 
 export async function registerUser(req, res) {
   const { username, email, password } = req.body;
+
+  if (!username || !email || !password) {
+    return res.status(400).json({ message: "Missing required fields" });
+  }
+
+  if (typeof password !== "string" || password.length < 8) {
+    return res
+      .status(400)
+      .json({ message: "Password must be at least 8 characters" });
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ message: "Invalid email format" });
+  }
 
   try {
     const checkUser = await pool.query(
@@ -19,16 +36,14 @@ export async function registerUser(req, res) {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-    const newUser = await pool.query(
+    await pool.query(
       `INSERT INTO users (username, email, password_hash) 
-       VALUES ($1, $2, $3) 
-       RETURNING id, username, email, created_at`,
+       VALUES ($1, $2, $3)`,
       [username, email, hashedPassword],
     );
 
     res.status(201).json({
       message: "User registered successfully",
-      user: newUser.rows[0],
     });
   } catch (error) {
     console.error("Register Error:", error);
@@ -38,6 +53,9 @@ export async function registerUser(req, res) {
 
 export async function loginUser(req, res) {
   const { email, password } = req.body;
+
+  if (!email || !password)
+    return res.status(400).json({ message: "Missing required fields" });
 
   try {
     const result = await pool.query("SELECT * FROM users WHERE email = $1", [
@@ -55,15 +73,36 @@ export async function loginUser(req, res) {
       return res.status(401).json({ message: "Invalid Email or Password" });
     }
 
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, {
+      expiresIn: "30m",
+    });
+
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: "lax",
+      maxAge: 30 * 60 * 1000,
+    });
+
     res.json({
-      message: "Login successful",
+      message: "User login successfully",
       user: {
         id: user.id,
         username: user.username,
+        avatarUrl: user.avatar_url,
       },
     });
   } catch (error) {
     console.error("Login Error:", error);
     res.status(500).json({ message: "Server error during login" });
   }
+}
+
+export async function logoutUser(req, res) {
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: "lax",
+  });
+  res.json({ message: "User logout successfully" });
 }

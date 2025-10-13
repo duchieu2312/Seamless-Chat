@@ -1,10 +1,11 @@
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router";
-import axios from "axios";
+import axiosInstance from "../../api/axiosInstance";
 import InputField from "./InputField";
 
 export default function LoginForm({ isVisible }) {
   const navigate = useNavigate();
+
   const {
     register,
     handleSubmit,
@@ -13,13 +14,10 @@ export default function LoginForm({ isVisible }) {
 
   const onSubmit = async (data) => {
     try {
-      const response = await axios.post(
-        "http://localhost:5000/api/auth/login",
-        {
-          email: data.email,
-          password: data.password,
-        },
-      );
+      const response = await axiosInstance.post("/auth/login", {
+        email: data.email,
+        password: data.password,
+      });
 
       localStorage.setItem("user", JSON.stringify(response.data.user));
 

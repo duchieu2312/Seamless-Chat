@@ -1,5 +1,6 @@
 import Auth from "./pages/Auth";
 import Channels from "./pages/Channels";
+import ProtectedRoute from "./components/auth/ProtectedRoute";
 
 const routes = [
   {
@@ -8,7 +9,11 @@ const routes = [
   },
   {
     path: "/channels",
-    element: <Channels />,
+    element: (
+      <ProtectedRoute>
+        <Channels />
+      </ProtectedRoute>
+    ),
   },
 ];
 

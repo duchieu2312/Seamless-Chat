@@ -1,5 +1,5 @@
 import { useForm } from "react-hook-form";
-import axios from "axios";
+import axiosInstance from "../../api/axiosInstance";
 import InputField from "./InputField";
 
 export default function RegisterForm({ isVisible }) {
@@ -15,14 +15,11 @@ export default function RegisterForm({ isVisible }) {
 
   const onSubmit = async (data) => {
     try {
-      const response = await axios.post(
-        "http://localhost:5000/api/auth/register",
-        {
-          username: data.username,
-          email: data.email,
-          password: data.password,
-        },
-      );
+      const response = await axiosInstance.post("/auth/register", {
+        username: data.username,
+        email: data.email,
+        password: data.password,
+      });
 
       alert(response.data.message);
       reset();
