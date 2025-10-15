@@ -1,8 +1,11 @@
 import { useForm } from "react-hook-form";
+import { useNavigate } from "react-router";
 import axiosInstance from "../../api/axiosInstance";
 import InputField from "./InputField";
 
 export default function RegisterForm({ isVisible }) {
+  const navigate = useNavigate();
+
   const {
     register,
     handleSubmit,
@@ -21,7 +24,10 @@ export default function RegisterForm({ isVisible }) {
         password: data.password,
       });
 
+      localStorage.setItem("user", JSON.stringify(response.data.user));
+
       alert(response.data.message);
+      navigate("/channels");
       reset();
     } catch (error) {
       const errorMessage =

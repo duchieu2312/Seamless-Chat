@@ -25,9 +25,12 @@ export default function Channels() {
   }, []);
 
   const handleLogout = async () => {
-    await axiosInstance.post("/auth/logout");
-    localStorage.removeItem("user");
-    navigate("/");
+    try {
+      await axiosInstance.post("/auth/logout");
+    } finally {
+      localStorage.removeItem("user");
+      navigate("/");
+    }
   };
 
   return (

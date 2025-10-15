@@ -23,7 +23,7 @@ CREATE TABLE servers (
 
 CREATE TABLE server_members (
 	server_id INTEGER NOT NULL,
-	member_id uuid NOT NULL,
+	member_id UUID NOT NULL,
 	role TEXT DEFAULT 'member',
 	joined_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -42,7 +42,7 @@ CREATE TABLE server_members (
 
 CREATE TABLE channels (
 	id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-	name TEXT UNIQUE NOT NULL,
+	name TEXT NOT NULL,
 	type TEXT DEFAULT 'text',
 	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	server_id INTEGER NOT NULL,
@@ -51,6 +51,9 @@ CREATE TABLE channels (
 	FOREIGN KEY (server_id)
 	REFERENCES servers(id)
 	ON DELETE CASCADE
+
+	CONSTRAINT unique_channel_name_per_server 
+	UNIQUE (server_id, name)
 );
 
 CREATE TABLE channel_messages (
@@ -128,3 +131,22 @@ CREATE TABLE channel_read_states (
 	REFERENCES channels(id) 
 	ON DELETE CASCADE
 );
+
+CREATE TABLE refresh_tokens (
+  id SERIAL PRIMARY KEY,
+  user_id UUID NOT NULL,
+  jti VARCHAR(64) NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+
+  CONSTRAINT fk_refresh_user
+    FOREIGN KEY (user_id)
+    REFERENCES users(id)
+    ON DELETE CASCADE
+);
+
+CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+CREATE INDEX idx_refresh_tokens_jti ON refresh_tokens(jti);
+CREATE INDEX idx_channels_server_id ON channels(server_id);
+CREATE INDEX idx_channel_messages_channel_id ON channel_messages(channel_id);
+CREATE INDEX idx_direct_messages_conversation_id ON direct_messages(conversation_id);
