@@ -10,6 +10,8 @@ import {
   refreshToken,
 } from "./controllers/authController.js";
 import authenticateToken from "./middlewares/authMiddleware.js";
+import { startTokenCleanupJob } from "./utils/cleanupTokens.js";
+import { loginLimiter, refreshLimiter } from "./middlewares/rateLimiter.js";
 
 const app = express();
 
@@ -24,9 +26,9 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.post("/api/auth/register", registerUser);
-app.post("/api/auth/login", loginUser);
+app.post("/api/auth/login", loginLimiter, loginUser);
 app.post("/api/auth/logout", logoutUser);
-app.post("/api/auth/refresh", refreshToken);
+app.post("/api/auth/refresh", refreshLimiter, refreshToken);
 
 app.get("/api/users/me", authenticateToken, async (req, res) => {
   try {
@@ -56,4 +58,5 @@ app.get("/api/users/me", authenticateToken, async (req, res) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
+  startTokenCleanupJob();
 });
