@@ -1,38 +1,42 @@
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router";
+import { useState } from "react";
+import { toast } from "sonner";
 import axiosInstance from "../../api/axiosInstance";
 import InputField from "./InputField";
 
 export default function RegisterForm({ isVisible }) {
   const navigate = useNavigate();
 
+  const [loading, setLoading] = useState(false);
+
   const {
     register,
     handleSubmit,
     watch,
-    formState: { errors, isSubmitting },
-    reset,
+    formState: { errors },
   } = useForm();
 
   const password = watch("password");
 
   const onSubmit = async (data) => {
+    setLoading(true);
     try {
-      const response = await axiosInstance.post("/auth/register", {
+      const res = await axiosInstance.post("/auth/register", {
         username: data.username,
         email: data.email,
         password: data.password,
       });
 
-      localStorage.setItem("user", JSON.stringify(response.data.user));
-
-      alert(response.data.message);
+      localStorage.setItem("user", JSON.stringify(res.data.user));
+      toast.success(res.data.message || "Account created successfully!");
       navigate("/channels");
-      reset();
-    } catch (error) {
-      const errorMessage =
-        error.response?.data?.message || "Something went wrong!";
-      alert("Error: " + errorMessage);
+    } catch (err) {
+      if (err.response?.status !== 429) {
+        toast.error(err.response?.data?.message || "Something went wrong!");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -84,10 +88,10 @@ export default function RegisterForm({ isVisible }) {
           validate={(val) => val === password || "Passwords do not match"}
         />
         <button
-          disabled={isSubmitting}
+          disabled={loading}
           className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-black transition-all cursor-pointer shadow-lg mt-4 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isSubmitting ? "Creating..." : "Get Started"}
+          {loading ? "Creating..." : "Get Started"}
         </button>
       </form>
     </div>

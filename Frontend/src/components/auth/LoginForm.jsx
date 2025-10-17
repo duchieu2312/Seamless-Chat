@@ -1,10 +1,14 @@
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router";
+import { useState } from "react";
+import { toast } from "sonner";
 import axiosInstance from "../../api/axiosInstance";
 import InputField from "./InputField";
 
 export default function LoginForm({ isVisible }) {
   const navigate = useNavigate();
+
+  const [loading, setLoading] = useState(false);
 
   const {
     register,
@@ -13,19 +17,22 @@ export default function LoginForm({ isVisible }) {
   } = useForm();
 
   const onSubmit = async (data) => {
+    setLoading(true);
     try {
-      const response = await axiosInstance.post("/auth/login", {
+      const res = await axiosInstance.post("/auth/login", {
         email: data.email,
         password: data.password,
       });
 
-      localStorage.setItem("user", JSON.stringify(response.data.user));
-
-      alert(response.data.message);
+      localStorage.setItem("user", JSON.stringify(res.data.user));
+      toast.success(res.data.message || "Welcome back!");
       navigate("/channels");
-    } catch (error) {
-      const errorMessage = error.response?.data?.message || "Login failed!";
-      alert("Error: " + errorMessage);
+    } catch (err) {
+      if (err.response?.status !== 429) {
+        toast.error(err.response?.data?.message || "Login failed!");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -57,8 +64,11 @@ export default function LoginForm({ isVisible }) {
           register={register}
           errors={errors}
         />
-        <button className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-black transition-all cursor-pointer">
-          Sign In
+        <button
+          disabled={loading}
+          className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-black transition-all cursor-pointer disabled:opacity-50"
+        >
+          {loading ? "Signing in..." : "Sign In"}
         </button>
       </form>
     </div>
