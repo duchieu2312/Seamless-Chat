@@ -30,7 +30,7 @@ export default function RegisterForm({ isVisible }) {
 
       localStorage.setItem("user", JSON.stringify(res.data.user));
       toast.success(res.data.message || "Account created successfully!");
-      navigate("/channels");
+      navigate("/seamless-chat");
     } catch (err) {
       if (err.response?.status !== 429) {
         toast.error(err.response?.data?.message || "Something went wrong!");

@@ -26,7 +26,7 @@ export default function LoginForm({ isVisible }) {
 
       localStorage.setItem("user", JSON.stringify(res.data.user));
       toast.success(res.data.message || "Welcome back!");
-      navigate("/channels");
+      navigate("/seamless-chat");
     } catch (err) {
       if (err.response?.status !== 429) {
         toast.error(err.response?.data?.message || "Login failed!");

@@ -35,7 +35,7 @@ app.get("/api/users/me", authenticateToken, async (req, res) => {
     const userId = req.user.id;
 
     const result = await pool.query(
-      "SELECT id, username, avatar_url FROM users WHERE id = $1",
+      'SELECT id, username, avatar_url AS "avatarUrl" FROM users WHERE id = $1',
       [userId],
     );
 
@@ -48,7 +48,7 @@ app.get("/api/users/me", authenticateToken, async (req, res) => {
     res.json({
       id: user.id,
       username: user.username,
-      avatarUrl: user.avatar_url,
+      avatarUrl: user.avatarUrl,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });

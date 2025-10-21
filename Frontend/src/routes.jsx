@@ -1,5 +1,5 @@
 import Auth from "./pages/Auth";
-import Channels from "./pages/Channels";
+import App from "./pages/App";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 
 const routes = [
@@ -8,10 +8,10 @@ const routes = [
     element: <Auth />,
   },
   {
-    path: "/channels",
+    path: "/seamless-chat",
     element: (
       <ProtectedRoute>
-        <Channels />
+        <App />
       </ProtectedRoute>
     ),
   },

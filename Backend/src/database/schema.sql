@@ -11,6 +11,7 @@ CREATE TABLE users (
 CREATE TABLE servers (
 	id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 	name TEXT UNIQUE NOT NULL,
+	icon_url TEXT,
 	invite_code TEXT UNIQUE,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	owner_id UUID,
@@ -50,7 +51,7 @@ CREATE TABLE channels (
 	CONSTRAINT fk_channel_server
 	FOREIGN KEY (server_id)
 	REFERENCES servers(id)
-	ON DELETE CASCADE
+	ON DELETE CASCADE,
 
 	CONSTRAINT unique_channel_name_per_server 
 	UNIQUE (server_id, name)
