@@ -67,7 +67,7 @@ function ServerBar({
                   {channel.name}
                 </span>
                 {channel.unread > 0 && (
-                  <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0">
+                  <span className="bg-red-500 text-white  text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0">
                     {channel.unread}
                   </span>
                 )}
@@ -78,40 +78,43 @@ function ServerBar({
             <div className="px-2 py-2 text-xs font-bold text-gray-500 uppercase tracking-wider mt-4">
               Voice Channels
             </div>
-            {voiceChannels.map((channel) => (
-              <button
-                key={channel.id}
-                onClick={() => onJoinVoice(channel.id)}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-400 hover:bg-white/5 transition-all"
-              >
-                <FiVolume2 size={18} className="flex-shrink-0" />
-                <span className="text-sm font-medium flex-1 text-left truncate">
-                  {channel.name}
-                </span>
-                {channel.connected.length > 0 && (
-                  <div className="flex -space-x-1.5 flex-shrink-0">
-                    {channel.connected.map((userInVoice, i) => (
-                      <div key={i} className="relative select-none">
-                        {userInVoice.avatarUrl ? (
-                          <img
-                            src={userInVoice.avatarUrl}
-                            alt={userInVoice.username}
-                            className="w-5 h-5 rounded-full object-cover border border-[#1e293b]"
-                          />
-                        ) : (
-                          <div
-                            className={`w-5 h-5 rounded-full bg-gradient-to-br ${getAvatarColor(userInVoice.username)} border border-[#1e293b] flex items-center justify-center text-[10px] font-bold text-white`}
-                          >
-                            {userInVoice.username?.charAt(0).toUpperCase() ||
-                              "?"}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </button>
-            ))}
+            {voiceChannels.map((channel) => {
+              const connectedUsers = channel.connected || [];
+              return (
+                <button
+                  key={channel.id}
+                  onClick={() => onJoinVoice(channel.id)}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-400 hover:bg-white/5 transition-all"
+                >
+                  <FiVolume2 size={18} className="flex-shrink-0" />
+                  <span className="text-sm font-medium flex-1 text-left truncate">
+                    {channel.name}
+                  </span>
+                  {connectedUsers.length > 0 && (
+                    <div className="flex -space-x-1.5 flex-shrink-0">
+                      {connectedUsers.map((userInVoice, i) => (
+                        <div key={i} className="relative select-none">
+                          {userInVoice.avatarUrl ? (
+                            <img
+                              src={userInVoice.avatarUrl}
+                              alt={userInVoice.username}
+                              className="w-5 h-5 rounded-full object-cover border border-[#1e293b]"
+                            />
+                          ) : (
+                            <div
+                              className={`w-5 h-5 rounded-full bg-gradient-to-br ${getAvatarColor(userInVoice.username)} border border-[#1e293b] flex items-center justify-center text-[10px] font-bold text-white`}
+                            >
+                              {userInVoice.username?.charAt(0).toUpperCase() ||
+                                "?"}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </>
       ) : (

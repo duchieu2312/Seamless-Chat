@@ -13,7 +13,7 @@ function CreateServerModal({ isOpen, onClose, onCreateServer }) {
     if (onCreateServer) {
       onCreateServer({
         name: serverName.trim(),
-        icon_url: null,
+        iconUrl: null,
       });
     }
     setServerName("");

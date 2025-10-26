@@ -1,19 +1,33 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import pool from "./config/db.js";
 import cookieParser from "cookie-parser";
+import authenticateToken from "./middlewares/authMiddleware.js";
+import { createServer } from "node:http";
+import { initSocket } from "./config/socket.js";
+import { startTokenCleanupJob } from "./utils/cleanupTokens.js";
+import { loginLimiter, refreshLimiter } from "./middlewares/rateLimiter.js";
 import {
   registerUser,
   loginUser,
   logoutUser,
   refreshToken,
 } from "./controllers/authController.js";
-import authenticateToken from "./middlewares/authMiddleware.js";
-import { startTokenCleanupJob } from "./utils/cleanupTokens.js";
-import { loginLimiter, refreshLimiter } from "./middlewares/rateLimiter.js";
+import { getUserInfo } from "./controllers/userController.js";
+import {
+  getChannelMessages,
+  getJoinedServers,
+  getPublicWithJoinStatus,
+  getServerChannels,
+  getServerMembers,
+  updateLastSeen,
+} from "./controllers/serverController.js";
+import { getDirectMessages } from "./controllers/directMessageController.js";
 
+// SETUP
 const app = express();
+const server = createServer(app);
+initSocket(server);
 
 app.use(helmet());
 app.use(
@@ -25,38 +39,46 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
+// ROUTES
+// AUTH ROUTES
 app.post("/api/auth/register", registerUser);
 app.post("/api/auth/login", loginLimiter, loginUser);
 app.post("/api/auth/logout", logoutUser);
 app.post("/api/auth/refresh", refreshLimiter, refreshToken);
 
-app.get("/api/users/me", authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.id;
+// USER ROUTES
+app.get("/api/users/me", authenticateToken, getUserInfo);
 
-    const result = await pool.query(
-      'SELECT id, username, avatar_url AS "avatarUrl" FROM users WHERE id = $1',
-      [userId],
-    );
+// SERVER ROUTES
+app.get("/api/servers/public", authenticateToken, getPublicWithJoinStatus);
+app.get("/api/servers/joined", authenticateToken, getJoinedServers);
+app.get(
+  "/api/servers/:serverId/channels",
+  authenticateToken,
+  getServerChannels,
+);
+app.get(
+  "/api/channels/:channelId/messages",
+  authenticateToken,
+  getChannelMessages,
+);
+app.get("/api/servers/:serverId/members", authenticateToken, getServerMembers);
+app.post(
+  "/api/channels/:channelId/last-read",
+  authenticateToken,
+  updateLastSeen,
+);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: "User not found" });
-    }
+// DIRECT MESSAGE ROUTES
+app.get(
+  "/api/conversations/:conversationId/messages",
+  authenticateToken,
+  getDirectMessages,
+);
 
-    const user = result.rows[0];
-
-    res.json({
-      id: user.id,
-      username: user.username,
-      avatarUrl: user.avatarUrl,
-    });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
+// START SERVER
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
   startTokenCleanupJob();
 });

@@ -28,5 +28,6 @@ Thumbs.db
 *.swp
 
 # --- Database ---
+seed.sql
 # *.sql
 # *.sqlite

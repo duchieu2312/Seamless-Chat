@@ -208,16 +208,20 @@ export async function logoutUser(req, res) {
   if (refreshToken) {
     try {
       const decoded = jwt.decode(refreshToken);
-      if (decoded?.jti) {
-        await pool.query("DELETE FROM refresh_tokens WHERE jti = $1", [
-          decoded.jti,
+      if (decoded?.id) {
+        await Promise.all([
+          pool.query("DELETE FROM refresh_tokens WHERE jti = $1", [
+            decoded.jti,
+          ]),
+          pool.query("UPDATE users SET status = 'offline' WHERE id = $1", [
+            decoded.id,
+          ]),
         ]);
       }
     } catch (e) {
       console.error("Logout decode error:", e.message);
     }
   }
-
   res.clearCookie("token", {
     httpOnly: true,
     secure: isProd,

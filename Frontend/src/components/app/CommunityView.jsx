@@ -45,7 +45,7 @@ export default function CommunityView({
             {filteredCommunities.map((server) => (
               <motion.div
                 key={server.name}
-                whileHover={{ scale: 1.02 }}
+                whileHover={{ scale: 1.05 }}
                 className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all flex flex-col justify-between"
               >
                 <div>
@@ -57,11 +57,10 @@ export default function CommunityView({
                   <h3 className="font-bold text-lg mb-1 text-gray-200">
                     {server.name}
                   </h3>
-                  <p className="text-gray-400 text-sm mb-4 line-clamp-2 h-10 leading-relaxed">
-                    {server.desc || "No description provided."}
+                  <p className="text-gray-400 text-sm mb-4 h-10 leading-relaxed">
+                    {server.description || "No description provided."}
                   </p>
                 </div>
-
                 <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-2">
                   <span className="text-xs text-gray-500 font-medium">
                     {server.members?.toLocaleString() || 0} members
