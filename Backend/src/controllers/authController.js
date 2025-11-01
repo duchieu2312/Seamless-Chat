@@ -53,7 +53,7 @@ function setAuthCookies(res, accessToken, refreshToken) {
     httpOnly: true,
     secure: isProd,
     sameSite: "lax",
-    path: "/api/auth/refresh",
+    path: "/",
     maxAge: 15 * 24 * 60 * 60 * 1000,
   });
 }
@@ -194,7 +194,7 @@ export async function refreshToken(req, res) {
       httpOnly: true,
       secure: isProd,
       sameSite: "lax",
-      path: "/api/auth/refresh",
+      path: "/",
     });
     return res
       .status(403)
@@ -231,7 +231,7 @@ export async function logoutUser(req, res) {
     httpOnly: true,
     secure: isProd,
     sameSite: "lax",
-    path: "/api/auth/refresh",
+    path: "/",
   });
 
   res.json({ message: "User logout successfully" });

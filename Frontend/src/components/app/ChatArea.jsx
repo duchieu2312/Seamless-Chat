@@ -11,7 +11,6 @@ function ChatArea({
   onSendMessage,
   isDM = false,
   getAvatarColor,
-  isLoading = false,
 }) {
   const messagesEndRef = useRef(null);
   const isFirstLoad = useRef(true);
@@ -24,7 +23,7 @@ function ChatArea({
 
   // Handle high-performance scrolling layout adjustments
   useEffect(() => {
-    if (!isLoading && messages.length > 0) {
+    if (messages.length > 0) {
       if (isFirstLoad.current) {
         // Instant teleport scroll to bottom on initial channel mounted
         messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
@@ -34,7 +33,7 @@ function ChatArea({
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }
     }
-  }, [messages, isLoading]);
+  }, [messages]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -146,7 +145,7 @@ function ChatArea({
             <input
               type="text"
               value={newMessage}
-              disabled={isLoading || !channel}
+              disabled={!channel}
               onChange={(e) => setNewMessage(e.target.value)}
               placeholder={
                 !channel
@@ -159,7 +158,7 @@ function ChatArea({
             />
             <button
               type="submit"
-              disabled={isLoading || !newMessage || !newMessage.trim()}
+              disabled={!newMessage || !newMessage.trim()}
               className="absolute right-2 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-30 disabled:hover:bg-indigo-500 px-4 py-2 rounded-xl text-sm font-semibold transition-all text-white flex items-center gap-1.5 shadow-md shadow-indigo-500/10"
             >
               <span>Send</span>

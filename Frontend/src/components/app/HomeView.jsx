@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { HiSparkles } from "react-icons/hi2";
+import logo from "../../assets/logo.svg";
 
 const HOME_STEPS = [
   {
@@ -35,15 +35,22 @@ export default function HomeView() {
         <div className="max-w-4xl mx-auto">
           {/* Welcome Banner Banner */}
           <div className="bg-gradient-to-br from-indigo-500/20 to-purple-500/20 backdrop-blur-xl border border-white/10 rounded-3xl p-8 mb-6">
-            <HiSparkles className="text-indigo-400 mb-4" size={48} />
-            <h1 className="text-4xl font-bold mb-4 tracking-tight">
-              Welcome to Seamless-Chat
-            </h1>
-            <p className="text-gray-300 text-lg">
-              Real-time messaging platform built for teams and communities
-            </p>
+            <div className="flex items-center gap-6">
+              <img
+                src={logo}
+                alt="Logo"
+                className="w-20 h-20 object-contain flex-shrink-0"
+              />
+              <div>
+                <h1 className="text-4xl font-bold mb-4 tracking-tight">
+                  Welcome to Seamless-Chat
+                </h1>
+                <p className="text-gray-300 text-lg">
+                  Real-time messaging platform built for teams and communities
+                </p>
+              </div>
+            </div>
           </div>
-
           {/* Onboarding On-steps Grid */}
           <div className="grid md:grid-cols-2 gap-4">
             {HOME_STEPS.map((item) => (

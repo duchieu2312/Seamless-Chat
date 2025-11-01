@@ -13,7 +13,18 @@ import {
   logoutUser,
   refreshToken,
 } from "./controllers/authController.js";
-import { getUserInfo } from "./controllers/userController.js";
+import {
+  getUserInfo,
+  getFriends,
+  getPendingRequests,
+  getBlockedUsers,
+  sendFriendRequest,
+  acceptFriendRequest,
+  declineFriendRequest,
+  blockUser,
+  unblockUser,
+  unfriend,
+} from "./controllers/userController.js";
 import {
   getChannelMessages,
   getJoinedServers,
@@ -48,6 +59,23 @@ app.post("/api/auth/refresh", refreshLimiter, refreshToken);
 
 // USER ROUTES
 app.get("/api/users/me", authenticateToken, getUserInfo);
+app.get("/api/users/friends", authenticateToken, getFriends);
+app.get("/api/users/friends/pending", authenticateToken, getPendingRequests);
+app.get("/api/users/friends/blocked", authenticateToken, getBlockedUsers);
+app.post("/api/users/friends/request", authenticateToken, sendFriendRequest);
+app.post(
+  "/api/users/friends/accept/:id",
+  authenticateToken,
+  acceptFriendRequest,
+);
+app.delete(
+  "/api/users/friends/decline/:id",
+  authenticateToken,
+  declineFriendRequest,
+);
+app.post("/api/users/friends/block/:id", authenticateToken, blockUser);
+app.delete("/api/users/friends/unblock/:id", authenticateToken, unblockUser);
+app.delete("/api/users/friends/unfriend/:id", authenticateToken, unfriend);
 
 // SERVER ROUTES
 app.get("/api/servers/public", authenticateToken, getPublicWithJoinStatus);

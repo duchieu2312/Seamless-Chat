@@ -1,10 +1,19 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { FiX, FiUserX, FiSlash, FiUnlock } from "react-icons/fi";
+import {
+  FiX,
+  FiUserX,
+  FiSlash,
+  FiUnlock,
+  FiUserCheck,
+  FiUserMinus,
+} from "react-icons/fi";
 import React from "react";
 
 function ConfirmModal({
   confirmModal,
   setConfirmModal,
+  onAcceptFriend,
+  onDeclineFriend,
   onBlock,
   onUnfriend,
   onUnblock,
@@ -18,6 +27,12 @@ function ConfirmModal({
     if (!target) return;
 
     switch (confirmModal.type) {
+      case "accept":
+        if (onAcceptFriend) onAcceptFriend(target);
+        break;
+      case "decline":
+        if (onDeclineFriend) onDeclineFriend(target);
+        break;
       case "unfriend":
         if (onUnfriend) onUnfriend(target);
         break;
@@ -34,6 +49,23 @@ function ConfirmModal({
   };
 
   const config = {
+    accept: {
+      title: "Accept Friend Request",
+      desc: `Do you want to accept the friend request from ${confirmModal.friend?.username} and add them to your friend list?`,
+      btnText: "Accept",
+      btnClass:
+        "bg-indigo-500 hover:bg-indigo-600 shadow-lg shadow-indigo-500/20",
+      iconBg: "bg-indigo-500/20 text-indigo-400",
+      icon: FiUserCheck,
+    },
+    decline: {
+      title: "Decline Request",
+      desc: `Are you sure you want to decline the friend request from ${confirmModal.friend?.username}?`,
+      btnText: "Decline",
+      btnClass: "bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/20",
+      iconBg: "bg-red-500/20 text-red-400",
+      icon: FiUserMinus,
+    },
     unfriend: {
       title: "Unfriend",
       desc: `Are you sure you want to unfriend ${confirmModal.friend?.username}?`,

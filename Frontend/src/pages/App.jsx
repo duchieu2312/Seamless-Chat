@@ -39,6 +39,12 @@ export default function App() {
     return localStorage.getItem("last_current_space") || "HOME";
   }); // "HOME" or "SERVER"
   const [activeHomeTab, setActiveHomeTab] = useState("home"); // "home", "people", "community"
+
+  // FRIENDS / DIRECT MESSAGE STATES
+  const [friends, setFriends] = useState([]);
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [blockedUsers, setBlockedUsers] = useState([]);
+  const [dmMessages, setDmMessages] = useState({});
   const [activeDM, setActiveDM] = useState(null); // Conversation ID for Direct Messages
 
   // SERVER STATES
@@ -66,70 +72,6 @@ export default function App() {
     friend: null,
   });
 
-  // ==========================================
-  // MOCK DATA
-  // ==========================================
-  const [dmMessages, setDmMessages] = useState({
-    101: [
-      {
-        id: 1,
-        username: "john_doe",
-        message: "Hey what's up?",
-        avatarUrl: null,
-        time: "8:30 PM",
-      },
-      {
-        id: 2,
-        username: user?.username || "you",
-        message: "Nothing much",
-        avatarUrl: user?.avatarUrl || null,
-        time: "8:31 PM",
-      },
-    ],
-    102: [
-      {
-        id: 1,
-        username: "alice_dev",
-        message: "Check this out",
-        avatarUrl: null,
-        time: "7:15 PM",
-      },
-    ],
-  });
-
-  const [friends, setFriends] = useState([
-    {
-      id: "uuid_1",
-      conversation_id: 101,
-      username: "john_doe",
-      avatarUrl: null,
-      status: "online",
-    },
-    {
-      id: "uuid_2",
-      conversation_id: 102,
-      username: "alice_dev",
-      avatarUrl: null,
-      status: "idle",
-    },
-    {
-      id: "uuid_3",
-      conversation_id: 103,
-      username: "bob_coder",
-      avatarUrl: null,
-      status: "offline",
-    },
-  ]);
-
-  const [blockedUsers, setBlockedUsers] = useState([
-    {
-      id: "uuid_99",
-      username: "spammer_123",
-      avatarUrl: null,
-      blockedAt: "2025-12-01",
-    },
-  ]);
-
   // Synchronize dynamic channel reference for Socket listeners securely
   const activeChannelRef = useRef(activeChannel);
   useEffect(() => {
@@ -146,13 +88,20 @@ export default function App() {
 
     const fetchServerData = async () => {
       try {
-        const [publicRes, joinedRes] = await Promise.all([
-          axiosInstance.get("/servers/public"),
-          axiosInstance.get("/servers/joined"),
-        ]);
+        const [publicRes, joinedRes, friendsRes, pendingRes, blockedRes] =
+          await Promise.all([
+            axiosInstance.get("/servers/public"),
+            axiosInstance.get("/servers/joined"),
+            axiosInstance.get("/users/friends"),
+            axiosInstance.get("/users/friends/pending"),
+            axiosInstance.get("/users/friends/blocked"),
+          ]);
 
         setCommunities(publicRes.data);
         setServers(joinedRes.data);
+        setFriends(friendsRes.data);
+        setPendingRequests(pendingRes.data);
+        setBlockedUsers(blockedRes.data);
 
         // Auto-select the first server if no historical active server is stored
         if (
@@ -396,7 +345,7 @@ export default function App() {
         socketRef.current = null;
       }
       localStorage.clear();
-      window.location.href = "";
+      window.location.href = "/";
     }
   };
 
@@ -491,30 +440,113 @@ export default function App() {
     toast.info(`Joining voice channel... ${channelId}`);
   }, []);
 
-  const handleSendFriendRequest = async (username) => {
-    toast.success(`Sent friend request to ${username}`);
+  const handleSendFriendRequest = async (targetUser) => {
+    try {
+      await axiosInstance.post("/users/friends/request", { targetUser });
+      toast.success(`Sent friend request to ${targetUser}`);
+    } catch (err) {
+      toast.error(
+        err.response?.data?.message || "Failed to send friend request.",
+      );
+    }
   };
 
-  const handleBlock = (friend) => {
-    setFriends((prev) => prev.filter((f) => f.id !== friend.id));
-    setBlockedUsers((prev) => [
-      ...prev,
-      { ...friend, blockedAt: new Date().toLocaleDateString() },
-    ]);
-    toast.success(`Blocked ${friend.username}`);
-    setConfirmModal({ open: false, type: "", friend: null });
+  const handleAcceptFriendRequest = async (targetUser) => {
+    try {
+      const response = await axiosInstance.post(
+        `/users/friends/accept/${targetUser.id}`,
+      );
+      const acceptedUser = pendingRequests.find((p) => p.id === targetUser.id);
+      if (acceptedUser) {
+        setPendingRequests((prev) =>
+          prev.filter((p) => p.id !== targetUser.id),
+        );
+        setFriends((prev) => [
+          ...prev,
+          {
+            id: acceptedUser.id,
+            username: acceptedUser.username,
+            avatarUrl: acceptedUser.avatarUrl,
+            status: "offline",
+            conversation_id: response.data?.conversation_id || null,
+          },
+        ]);
+      }
+      toast.success(response.data?.message || "Accepted friend request.");
+    } catch (err) {
+      toast.error(
+        err.response?.data?.message || "Failed to accept friend request.",
+      );
+    } finally {
+      setConfirmModal({ open: false, type: "", friend: null });
+    }
   };
 
-  const handleUnblock = (targetUser) => {
-    setBlockedUsers((prev) => prev.filter((u) => u.id !== targetUser.id));
-    toast.success(`Unblocked ${targetUser.username}`);
-    setConfirmModal({ open: false, type: "", friend: null });
+  const handleDeclineFriendRequest = async (targetUser) => {
+    try {
+      const response = await axiosInstance.delete(
+        `/users/friends/decline/${targetUser.id}`,
+      );
+
+      const declinedUser = pendingRequests.find(
+        (req) => req.id === targetUser.id,
+      );
+      const username = declinedUser ? declinedUser.username : "user";
+
+      setPendingRequests((prev) =>
+        prev.filter((req) => req.id !== targetUser.id),
+      );
+
+      toast.success(
+        response.data?.message || `Declined friend request from ${username}`,
+      );
+    } catch (err) {
+      toast.error(
+        err.response?.data?.message || "Failed to decline friend request.",
+      );
+    } finally {
+      setConfirmModal({ open: false, type: "", friend: null });
+    }
   };
 
-  const handleUnfriend = (friend) => {
-    setFriends((prev) => prev.filter((f) => f.id !== friend.id));
-    toast.success(`Unfriended ${friend.username}`);
-    setConfirmModal({ open: false, type: "", friend: null });
+  const handleBlock = async (targetUser) => {
+    try {
+      await axiosInstance.post(`/users/friends/block/${targetUser.id}`);
+      setFriends((prev) => prev.filter((f) => f.id !== targetUser.id));
+      setBlockedUsers((prev) => [
+        ...prev,
+        { ...targetUser, updatedAt: new Date().toLocaleDateString() },
+      ]);
+      toast.success(`Blocked ${targetUser.username}`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to block user.");
+    } finally {
+      setConfirmModal({ open: false, type: "", friend: null });
+    }
+  };
+
+  const handleUnfriend = async (targetUser) => {
+    try {
+      await axiosInstance.delete(`/users/friends/unfriend/${targetUser.id}`);
+      setFriends((prev) => prev.filter((f) => f.id !== targetUser.id));
+      toast.success(`Unfriended ${targetUser.username}`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to unfriend.");
+    } finally {
+      setConfirmModal({ open: false, type: "", friend: null });
+    }
+  };
+
+  const handleUnblock = async (targetUser) => {
+    try {
+      await axiosInstance.delete(`/users/friends/unblock/${targetUser.id}`);
+      setBlockedUsers((prev) => prev.filter((u) => u.id !== targetUser.id));
+      toast.success(`Unblocked ${targetUser.username}`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to unblock user.");
+    } finally {
+      setConfirmModal({ open: false, type: "", friend: null });
+    }
   };
 
   const handleCreateServer = (newServerData) => {
@@ -693,7 +725,7 @@ export default function App() {
     // 2. Render for HOME space view with active DM conversation
     if (activeDM) {
       const targetFriend = friends.find(
-        (f) => Number(f.conversation_id) === Number(activeDM),
+        (f) => Number(f.conversationId) === Number(activeDM),
       );
       return (
         <ChatArea
@@ -717,6 +749,7 @@ export default function App() {
           <PeopleView
             friends={friends}
             blockedUsers={blockedUsers}
+            pendingRequests={pendingRequests}
             onChat={(convId) => setActiveDM(convId)}
             onSendFriendRequest={handleSendFriendRequest}
             setConfirmModal={setConfirmModal}
@@ -787,6 +820,8 @@ export default function App() {
         onBlock={handleBlock}
         onUnfriend={handleUnfriend}
         onUnblock={handleUnblock}
+        onAcceptFriend={handleAcceptFriendRequest}
+        onDeclineFriend={handleDeclineFriendRequest}
       />
       <CreateServerModal
         isOpen={isCreateServerOpen}

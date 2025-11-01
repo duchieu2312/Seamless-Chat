@@ -5,7 +5,33 @@ CREATE TABLE users (
 	password_hash TEXT NOT NULL,
 	avatar_url TEXT,
 	status TEXT DEFAULT 'offline',
-	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+	CONSTRAINT check_user_status	CHECK (status IN ('online', 'offline', 'idle', 'dnd'))
+);
+
+CREATE TABLE friendships (
+  user_id UUID NOT NULL,
+  friend_id UUID NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (user_id, friend_id),
+
+  CONSTRAINT check_not_self CHECK (user_id != friend_id),
+
+  CONSTRAINT fk_friendship_user
+  FOREIGN KEY (user_id)
+  REFERENCES users(id)
+  ON DELETE CASCADE,
+
+  CONSTRAINT fk_friendship_friend
+	FOREIGN KEY (friend_id)
+  REFERENCES users(id)
+  ON DELETE CASCADE,
+
+	CONSTRAINT check_friendship_status	CHECK (status IN ('pending', 'accepted', 'blocked'))
 );
 
 CREATE TABLE servers (
@@ -40,7 +66,9 @@ CREATE TABLE server_members (
 	CONSTRAINT fk_member_user
 	FOREIGN KEY (member_id)
 	REFERENCES users(id)
-	ON DELETE CASCADE
+	ON DELETE CASCADE,
+
+	CONSTRAINT check_member_role CHECK (role IN ('owner', 'member'))
 );
 
 CREATE TABLE channels (
@@ -56,7 +84,9 @@ CREATE TABLE channels (
 	ON DELETE CASCADE,
 
 	CONSTRAINT unique_channel_name_per_server 
-	UNIQUE (server_id, name)
+	UNIQUE (server_id, name),
+
+	CONSTRAINT check_channel_type CHECK (type IN ('text', 'voice'))
 );
 
 CREATE TABLE channel_messages (
@@ -143,13 +173,22 @@ CREATE TABLE refresh_tokens (
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 
   CONSTRAINT fk_refresh_user
-    FOREIGN KEY (user_id)
-    REFERENCES users(id)
-    ON DELETE CASCADE
+  FOREIGN KEY (user_id)
+  REFERENCES users(id)
+	ON DELETE CASCADE
 );
 
-CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
-CREATE INDEX idx_refresh_tokens_jti ON refresh_tokens(jti);
+-- server members
+CREATE INDEX idx_server_members_member_id ON server_members(member_id);
+-- channels
 CREATE INDEX idx_channels_server_id ON channels(server_id);
-CREATE INDEX idx_channel_messages_channel_id ON channel_messages(channel_id);
+-- messages
+CREATE INDEX idx_channel_messages_channel_sent ON channel_messages(channel_id, sent_at);
 CREATE INDEX idx_direct_messages_conversation_id ON direct_messages(conversation_id);
+-- friendships
+CREATE INDEX idx_friendships_user_status ON friendships(user_id, status);
+CREATE INDEX idx_friendships_friend_status ON friendships(friend_id, status);
+-- refresh tokens
+CREATE INDEX idx_refresh_tokens_jti ON refresh_tokens(jti);
+CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+CREATE INDEX idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
