@@ -163,7 +163,7 @@ export default function App() {
       }
     });
 
-    // Handle real-time user presence/status status updates (Online, Idle, Offline)
+    // Handle real-time user presence/status status updates (Online, Idle, Dnb, Invisible & Offline)
     socketRef.current.on("user_status_changed", (data) => {
       const { userId, status } = data;
 

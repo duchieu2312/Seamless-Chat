@@ -7,7 +7,7 @@ CREATE TABLE users (
 	status TEXT DEFAULT 'offline',
 	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-	CONSTRAINT check_user_status	CHECK (status IN ('online', 'offline', 'idle', 'dnd'))
+	CONSTRAINT check_user_status	CHECK (status IN ('online', 'idle', 'dnd', 'invisible', 'offline'));
 );
 
 CREATE TABLE friendships (
