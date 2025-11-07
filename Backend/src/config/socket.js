@@ -134,8 +134,7 @@ export const initSocket = (server) => {
       const senderId = socket.userId;
       const cleanMessage = message.trim();
 
-      if (!roomId || cleanMessage.length === 0 || cleanMessage.length > 2000)
-        return;
+      if (!roomId || cleanMessage.length === 0) return;
 
       try {
         if (roomId.startsWith("channel_")) {
@@ -173,7 +172,7 @@ export const initSocket = (server) => {
             if (member.member_id) {
               const personalRoom = `user_${member.member_id}`;
 
-              io.to(personalRoom).emit("global_unread_notification", {
+              io.to(personalRoom).emit("channel_unread_notification", {
                 channelId: channelId,
               });
             }
@@ -199,6 +198,23 @@ export const initSocket = (server) => {
             "INSERT INTO direct_messages (message, conversation_id, sender_id) VALUES ($1, $2, $3)",
             [message, conversationId, senderId],
           );
+
+          const receiverResult = await pool.query(
+            `SELECT
+             CASE
+              WHEN user_one_id = $1 THEN user_two_id
+              ELSE user_one_id
+             END AS receiver_id
+             FROM conversations
+             WHERE id = $2`,
+            [senderId, conversationId],
+          );
+
+          const receiverId = receiverResult.rows[0].receiver_id;
+
+          io.to(`user_${receiverId}`).emit("dm_unread_notification", {
+            conversationId: conversationId,
+          });
         }
       } catch (error) {
         console.error("DB Error inside send_message:", error.message);

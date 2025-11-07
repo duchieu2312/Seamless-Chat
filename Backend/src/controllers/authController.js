@@ -101,7 +101,7 @@ export async function registerUser(req, res) {
     const { refreshToken } = await generateRefreshToken(user.id);
     setAuthCookies(res, accessToken, refreshToken);
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "User registered successfully",
       user: {
         id: user.id,
@@ -111,7 +111,9 @@ export async function registerUser(req, res) {
     });
   } catch (error) {
     console.error("Register Error:", error);
-    res.status(500).json({ message: "Server error during registration" });
+    return res
+      .status(500)
+      .json({ message: "Server error during registration" });
   }
 }
 
@@ -139,7 +141,7 @@ export async function loginUser(req, res) {
     const { refreshToken } = await generateRefreshToken(user.id);
     setAuthCookies(res, accessToken, refreshToken);
 
-    res.json({
+    return res.json({
       message: "User login successfully",
       user: {
         id: user.id,
@@ -149,7 +151,7 @@ export async function loginUser(req, res) {
     });
   } catch (error) {
     console.error("Login Error:", error);
-    res.status(500).json({ message: "Server error during login" });
+    return res.status(500).json({ message: "Server error during login" });
   }
 }
 
@@ -182,7 +184,7 @@ export async function refreshToken(req, res) {
     );
 
     setAuthCookies(res, newAccessToken, newRefreshToken);
-    res.json({ message: "Token refreshed" });
+    return res.json({ message: "Token refreshed" });
   } catch (error) {
     console.error("Refresh Error:", error.message);
     res.clearCookie("token", {
@@ -234,5 +236,5 @@ export async function logoutUser(req, res) {
     path: "/",
   });
 
-  res.json({ message: "User logout successfully" });
+  return res.json({ message: "User logout successfully" });
 }

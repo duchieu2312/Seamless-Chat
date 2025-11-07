@@ -178,7 +178,7 @@ export default function PeopleView({
 
                       <div className="flex gap-1 flex-shrink-0">
                         <button
-                          onClick={() => onChat(friend.conversation_id)}
+                          onClick={() => onChat(friend.conversationId)}
                           className="p-2 hover:bg-indigo-500/20 rounded-lg transition-colors group"
                           title="Chat"
                         >

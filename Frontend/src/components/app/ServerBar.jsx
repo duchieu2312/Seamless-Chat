@@ -68,7 +68,7 @@ function ServerBar({
                 </span>
                 {channel.unread > 0 && (
                   <span className="bg-red-500 text-white  text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0">
-                    {channel.unread}
+                    {channel.unread > 99 ? "99+" : channel.unread}
                   </span>
                 )}
               </motion.button>
@@ -155,12 +155,12 @@ function ServerBar({
               </div>
               <div className="space-y-0.5">
                 {friends.map((friend) => {
-                  const isActive = activeDM === friend.conversation_id;
+                  const isActive = activeDM === friend.conversationId;
                   return (
                     <motion.button
                       key={friend.id}
                       whileHover={{ x: 4 }}
-                      onClick={() => setActiveDM(friend.conversation_id)}
+                      onClick={() => setActiveDM(friend.conversationId)}
                       className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all group
                         ${isActive ? "bg-white/10 text-white" : "text-gray-400 hover:bg-white/5 hover:text-gray-200"}`}
                     >
@@ -186,6 +186,11 @@ function ServerBar({
                       <span className="text-sm font-medium flex-1 text-left truncate">
                         {friend.username}
                       </span>
+                      {friend.unread > 0 && (
+                        <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0">
+                          {friend.unread > 99 ? "99+" : friend.unread}
+                        </span>
+                      )}
                     </motion.button>
                   );
                 })}

@@ -78,6 +78,12 @@ export default function App() {
     activeChannelRef.current = activeChannel;
   }, [activeChannel]);
 
+  // Synchronize dynamic DM reference for Socket listeners securely
+  const activeDMRef = useRef(activeDM);
+  useEffect(() => {
+    activeDMRef.current = activeDM;
+  }, [activeDM]);
+
   // ==========================================
   // DATA FETCHING & WEBSOCKETS
   // ==========================================
@@ -149,7 +155,7 @@ export default function App() {
     });
 
     // Handle background notification increments for other channels
-    socketRef.current.on("global_unread_notification", (data) => {
+    socketRef.current.on("channel_unread_notification", (data) => {
       const { channelId } = data;
 
       if (parseInt(channelId) !== parseInt(activeChannelRef.current)) {
@@ -158,6 +164,24 @@ export default function App() {
             parseInt(c.id) === parseInt(channelId)
               ? { ...c, unread: (c.unread || 0) + 1 }
               : c,
+          ),
+        );
+      }
+    });
+
+    // Handle background notification increments for other DMs
+    socketRef.current.on("dm_unread_notification", (data) => {
+      const { conversationId } = data;
+
+      if (parseInt(conversationId) !== parseInt(activeDMRef.current)) {
+        setFriends((prevFriends) =>
+          prevFriends.map((f) =>
+            parseInt(f.conversationId) === parseInt(conversationId)
+              ? {
+                  ...f,
+                  unread: (f.unread || 0) + 1,
+                }
+              : f,
           ),
         );
       }
@@ -280,7 +304,7 @@ export default function App() {
     fetchChannelMessages();
   }, [activeChannel]);
 
-  // Reset client side notifications and sync read markers with server database
+  // Reset client side channel messages notifications and sync read markers with server database
   useEffect(() => {
     if (!activeChannel) return;
 
@@ -330,6 +354,42 @@ export default function App() {
 
     fetchDmMessages();
   }, [activeDM, user]);
+
+  // Reset client side DM notifications and sync read markers with server database
+  useEffect(() => {
+    if (!activeDM) return;
+
+    setFriends((prevFriends) =>
+      prevFriends.map((f) =>
+        parseInt(f.conversationId) === parseInt(activeDM)
+          ? {
+              ...f,
+              unread: 0,
+            }
+          : f,
+      ),
+    );
+
+    const updateLastRead = () => {
+      axiosInstance
+        .post(`/conversations/${activeDM}/last-read`)
+        .catch(console.error);
+    };
+
+    updateLastRead();
+
+    // Ensure read status markers are synced even if user closes the tab abruptly
+    const handleBeforeUnload = () => {
+      updateLastRead();
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      updateLastRead();
+    };
+  }, [activeDM]);
 
   // ==========================================
   // ACTION EVENT HANDLERS
@@ -456,22 +516,14 @@ export default function App() {
       const response = await axiosInstance.post(
         `/users/friends/accept/${targetUser.id}`,
       );
-      const acceptedUser = pendingRequests.find((p) => p.id === targetUser.id);
-      if (acceptedUser) {
-        setPendingRequests((prev) =>
-          prev.filter((p) => p.id !== targetUser.id),
-        );
-        setFriends((prev) => [
-          ...prev,
-          {
-            id: acceptedUser.id,
-            username: acceptedUser.username,
-            avatarUrl: acceptedUser.avatarUrl,
-            status: "offline",
-            conversation_id: response.data?.conversation_id || null,
-          },
-        ]);
-      }
+
+      const [friendsRes, pendingRes] = await Promise.all([
+        axiosInstance.get("/users/friends"),
+        axiosInstance.get("/users/friends/pending"),
+      ]);
+      setFriends(friendsRes.data);
+      setPendingRequests(pendingRes.data);
+
       toast.success(response.data?.message || "Accepted friend request.");
     } catch (err) {
       toast.error(
@@ -488,17 +540,12 @@ export default function App() {
         `/users/friends/decline/${targetUser.id}`,
       );
 
-      const declinedUser = pendingRequests.find(
-        (req) => req.id === targetUser.id,
-      );
-      const username = declinedUser ? declinedUser.username : "user";
-
-      setPendingRequests((prev) =>
-        prev.filter((req) => req.id !== targetUser.id),
-      );
+      const pendingRes = await axiosInstance.get("/users/friends/pending");
+      setPendingRequests(pendingRes.data);
 
       toast.success(
-        response.data?.message || `Declined friend request from ${username}`,
+        response.data?.message ||
+          `Declined friend request from ${targetUser.username}`,
       );
     } catch (err) {
       toast.error(
@@ -512,11 +559,16 @@ export default function App() {
   const handleBlock = async (targetUser) => {
     try {
       await axiosInstance.post(`/users/friends/block/${targetUser.id}`);
-      setFriends((prev) => prev.filter((f) => f.id !== targetUser.id));
-      setBlockedUsers((prev) => [
-        ...prev,
-        { ...targetUser, updatedAt: new Date().toLocaleDateString() },
+
+      const [friendsRes, blockedRes] = await Promise.all([
+        axiosInstance.get("/users/friends"),
+        axiosInstance.get("/users/friends/blocked"),
       ]);
+      setFriends(friendsRes.data);
+      setBlockedUsers(blockedRes.data);
+
+      setActiveDM(null);
+
       toast.success(`Blocked ${targetUser.username}`);
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to block user.");
@@ -528,7 +580,12 @@ export default function App() {
   const handleUnfriend = async (targetUser) => {
     try {
       await axiosInstance.delete(`/users/friends/unfriend/${targetUser.id}`);
-      setFriends((prev) => prev.filter((f) => f.id !== targetUser.id));
+
+      const friendRes = await axiosInstance.get("/users/friends");
+      setFriends(friendRes.data);
+
+      setActiveDM(null);
+
       toast.success(`Unfriended ${targetUser.username}`);
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to unfriend.");
@@ -540,7 +597,10 @@ export default function App() {
   const handleUnblock = async (targetUser) => {
     try {
       await axiosInstance.delete(`/users/friends/unblock/${targetUser.id}`);
-      setBlockedUsers((prev) => prev.filter((u) => u.id !== targetUser.id));
+
+      const blockedRes = await axiosInstance.get("/users/friends/blocked");
+      setBlockedUsers(blockedRes.data);
+
       toast.success(`Unblocked ${targetUser.username}`);
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to unblock user.");
@@ -722,6 +782,7 @@ export default function App() {
         </div>
       );
     }
+
     // 2. Render for HOME space view with active DM conversation
     if (activeDM) {
       const targetFriend = friends.find(

@@ -33,7 +33,10 @@ import {
   getServerMembers,
   updateLastSeen,
 } from "./controllers/serverController.js";
-import { getDirectMessages } from "./controllers/directMessageController.js";
+import {
+  getDirectMessages,
+  updateDmLastSeen,
+} from "./controllers/directMessageController.js";
 
 // SETUP
 const app = express();
@@ -102,6 +105,11 @@ app.get(
   "/api/conversations/:conversationId/messages",
   authenticateToken,
   getDirectMessages,
+);
+app.post(
+  "/api/conversations/:conversationId/last-read",
+  authenticateToken,
+  updateDmLastSeen,
 );
 
 // START SERVER

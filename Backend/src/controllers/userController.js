@@ -30,18 +30,35 @@ export async function getFriends(req, res) {
     const userId = req.user.id;
 
     const result = await pool.query(
-      `SELECT 
-        u.id, 
-        u.username, 
-        u.avatar_url AS "avatarUrl", 
+      `SELECT
+        u.id,
+        u.username,
+        u.avatar_url AS "avatarUrl",
         u.status,
-        c.id AS "conversationId"
-       FROM friendships f
-       JOIN users u ON f.friend_id = u.id
-       LEFT JOIN conversations c ON 
-         (c.user_one_id = $1 AND c.user_two_id = f.friend_id) OR 
-         (c.user_one_id = f.friend_id AND c.user_two_id = $1)
-       WHERE f.user_id = $1 AND f.status = 'accepted'`,
+        c.id AS "conversationId",
+        (
+          SELECT COUNT(*)::INT
+          FROM direct_messages dm
+          WHERE dm.conversation_id = c.id
+            AND dm.sender_id <> $1
+            AND dm.sent_at >
+              CASE
+                WHEN c.user_one_id = $1
+                  THEN c.user_one_last_read
+                ELSE c.user_two_last_read
+              END
+        ) AS "unread"
+      FROM friendships f
+      JOIN users u
+        ON f.friend_id = u.id
+      LEFT JOIN conversations c
+        ON (
+          (c.user_one_id = $1 AND c.user_two_id = f.friend_id)
+          OR
+          (c.user_one_id = f.friend_id AND c.user_two_id = $1)
+        )
+      WHERE f.user_id = $1
+        AND f.status = 'accepted'`,
       [userId],
     );
 
@@ -50,7 +67,6 @@ export async function getFriends(req, res) {
     return res.status(500).json({ message: err.message });
   }
 }
-
 export async function getPendingRequests(req, res) {
   try {
     const userId = req.user.id;
@@ -235,7 +251,7 @@ export async function acceptFriendRequest(req, res) {
        ON CONFLICT (user_one_id, user_two_id)
        DO UPDATE
        SET user_one_id = conversations.user_one_id
-       RETURNING id;`,
+       RETURNING id`,
       [userOne, userTwo],
     );
 
