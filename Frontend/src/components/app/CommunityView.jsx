@@ -7,6 +7,7 @@ export default function CommunityView({
   setCommunitySearch,
   communities = [],
   getAvatarColor,
+  onJoinServer,
 }) {
   const filteredCommunities = communities.filter((c) =>
     c.name.toLowerCase().includes(communitySearch.toLowerCase()),
@@ -71,13 +72,13 @@ export default function CommunityView({
                         ? "bg-white/10 hover:bg-white/20 text-gray-300"
                         : "bg-indigo-500 hover:bg-indigo-600 text-white"
                     }`}
-                    onClick={() =>
-                      toast.success(
-                        server.joined
-                          ? "You have already joined this community"
-                          : `Successfully joined ${server.name}!`,
-                      )
-                    }
+                    onClick={() => {
+                      if (server.joined) {
+                        toast.info("You have already joined this community");
+                      } else {
+                        onJoinServer(server.id);
+                      }
+                    }}
                   >
                     {server.joined ? "Joined" : "Join Server"}
                   </button>

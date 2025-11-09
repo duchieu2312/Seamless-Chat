@@ -26,10 +26,12 @@ import {
   unfriend,
 } from "./controllers/userController.js";
 import {
-  getChannelMessages,
-  getJoinedServers,
   getPublicWithJoinStatus,
+  joinServer,
+  leaveServer,
+  getJoinedServers,
   getServerChannels,
+  getChannelMessages,
   getServerMembers,
   updateLastSeen,
 } from "./controllers/serverController.js";
@@ -82,6 +84,8 @@ app.delete("/api/users/friends/unfriend/:id", authenticateToken, unfriend);
 
 // SERVER ROUTES
 app.get("/api/servers/public", authenticateToken, getPublicWithJoinStatus);
+app.post("/api/servers/:serverId/join", authenticateToken, joinServer);
+app.delete("/api/servers/:serverId/leave", authenticateToken, leaveServer);
 app.get("/api/servers/joined", authenticateToken, getJoinedServers);
 app.get(
   "/api/servers/:serverId/channels",

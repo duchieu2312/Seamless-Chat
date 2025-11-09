@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import React, { useState } from "react";
 import {
   FiHash,
   FiSettings,
@@ -8,7 +9,6 @@ import {
   FiGlobe,
 } from "react-icons/fi";
 import { HiSparkles } from "react-icons/hi2";
-import React from "react";
 
 const homeItems = [
   { id: "home", icon: FiHome, label: "Home" },
@@ -30,7 +30,10 @@ function ServerBar({
   activeDM,
   setActiveDM,
   getAvatarColor,
+  onLeaveServer,
 }) {
+  const [showMenu, setShowMenu] = useState(false);
+
   return (
     <div className="w-[280px] min-w-[280px] max-w-[280px] basis-[280px] flex-shrink-0 bg-black/20 backdrop-blur-xl border-r border-white/5 flex flex-col relative z-30">
       {currentSpace === "SERVER" ? (
@@ -43,10 +46,27 @@ function ServerBar({
                 {server?.name}
               </span>
             </div>
-            <FiSettings
-              size={18}
-              className="text-gray-400 hover:text-white cursor-pointer transition-colors flex-shrink-0"
-            />
+            <div className="relative">
+              <FiSettings
+                size={18}
+                onClick={() => setShowMenu((v) => !v)}
+                className="text-gray-400 hover:text-white cursor-pointer transition-colors"
+              />
+
+              {showMenu && (
+                <div className="absolute right-0 mt-2 w-44 rounded-lg bg-[#1e293b] border border-white/10 shadow-xl z-50">
+                  <button
+                    onClick={() => {
+                      setShowMenu(false);
+                      onLeaveServer();
+                    }}
+                    className="w-full text-left px-4 py-2 text-red-400 hover:bg-white/5"
+                  >
+                    Leave Server
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Text Channels List Navigation */}

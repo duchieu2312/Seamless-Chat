@@ -4,23 +4,33 @@ import logo from "../../assets/logo.svg";
 const HOME_STEPS = [
   {
     step: "1",
-    title: "Create or Join a Server",
-    desc: "Click the + button to create your own server or join with an invite link",
+    title: "Discover Communities",
+    desc: "Browse public communities or create your own workspace to start collaborating.",
   },
   {
     step: "2",
-    title: "Explore Channels",
-    desc: "Text channels for messaging, voice channels for real-time audio",
+    title: "Join a Server",
+    desc: "Join communities that interest you and instantly access their channels and members.",
   },
   {
     step: "3",
-    title: "Add Friends",
-    desc: "Go to People tab to search and add friends by username",
+    title: "Explore Text & Voice Channels",
+    desc: "Chat in text channels, share ideas, or hop into voice channels for real-time conversations.",
   },
   {
     step: "4",
-    title: "Customize Workspace",
-    desc: "Change your avatar, status, and notification settings",
+    title: "Build Your Friend Network",
+    desc: "Search users by username, send friend requests, and stay connected through Direct Messages.",
+  },
+  {
+    step: "5",
+    title: "Stay in Sync",
+    desc: "Receive real-time messages, unread notifications, and presence updates without refreshing.",
+  },
+  {
+    step: "6",
+    title: "Make It Yours",
+    desc: "Customize your profile, manage your servers, and enjoy a seamless communication experience.",
   },
 ];
 

@@ -4,6 +4,7 @@ import axiosInstance from "../api/axiosInstance";
 import useAuth from "../hooks/useAuth";
 import ServerBar from "../components/app/ServerBar";
 import Sidebar from "../components/app/Sidebar";
+import SidebarMember from "../components/app/SidebarMember";
 import UserPanel from "../components/app/UserPanel";
 import ChatArea from "../components/app/ChatArea";
 import HomeView from "../components/app/HomeView";
@@ -11,7 +12,6 @@ import PeopleView from "../components/app/PeopleView";
 import CommunityView from "../components/app/CommunityView";
 import ConfirmModal from "../components/app/ConfirmModal";
 import CreateServerModal from "../components/app/CreateServerModal";
-import { FiUsers } from "react-icons/fi";
 import { io } from "socket.io-client";
 
 // Deterministic avatar color picker based on username
@@ -51,10 +51,12 @@ export default function App() {
   const [communities, setCommunities] = useState([]);
   const [serverHistory, setServerHistory] = useState({});
   const [activeServer, setActiveServer] = useState(() => {
-    return localStorage.getItem("last_active_server") || "";
+    const saved = localStorage.getItem("last_active_server");
+    return saved ? Number(saved) : null;
   });
   const [activeChannel, setActiveChannel] = useState(() => {
-    return localStorage.getItem("last_active_channel") || "";
+    const saved = localStorage.getItem("last_active_channel");
+    return saved ? Number(saved) : null;
   });
   const [servers, setServers] = useState([]);
   const [textChannels, setTextChannels] = useState([]);
@@ -609,6 +611,62 @@ export default function App() {
     }
   };
 
+  const handleJoinServer = async (serverId) => {
+    try {
+      const response = await axiosInstance.post(`/servers/${serverId}/join`);
+
+      const [joinedRes, publicRes] = await Promise.all([
+        axiosInstance.get("/servers/joined"),
+        axiosInstance.get("/servers/public"),
+      ]);
+
+      setServers(joinedRes.data);
+      setCommunities(publicRes.data);
+
+      setCurrentSpace("SERVER");
+      setActiveServer(serverId);
+
+      localStorage.setItem("last_current_space", "SERVER");
+      localStorage.setItem("last_active_server", serverId);
+
+      toast.success(response.data.message);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to join server.");
+    }
+  };
+
+  const handleLeaveServer = async () => {
+    if (!activeServer) return;
+
+    try {
+      const response = await axiosInstance.delete(
+        `/servers/${activeServer}/leave`,
+      );
+
+      const [joinedRes, publicRes] = await Promise.all([
+        axiosInstance.get("/servers/joined"),
+        axiosInstance.get("/servers/public"),
+      ]);
+
+      setServers(joinedRes.data);
+      setCommunities(publicRes.data);
+
+      setCurrentSpace("HOME");
+      setActiveServer("");
+      setActiveChannel("");
+      setTextChannels([]);
+      setVoiceChannels([]);
+      setServerMembers([]);
+      setChannelMessages({});
+      localStorage.removeItem("last_active_server");
+      localStorage.removeItem("last_active_channel");
+
+      toast.success(response.data.message);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to leave server.");
+    }
+  };
+
   const handleCreateServer = (newServerData) => {
     const newId = Date.now();
     const newServer = {
@@ -682,103 +740,10 @@ export default function App() {
             />
           </div>
 
-          {/* RIGHT SIDEBAR: SERVER MEMBERS ROSTER PANEL */}
-          <div className="w-60 min-w-[240px] max-w-[240px] bg-black/15 border-l border-white/5 flex flex-col h-full select-none flex-shrink-0">
-            {/* Header tracking overall presence density counts */}
-            <div className="h-14 px-4 border-b border-white/5 bg-black/10 flex items-center gap-2 text-xs font-bold text-white tracking-wider uppercase">
-              <FiUsers size={14} />
-              <span>Total Members — {computedServerRoster.totalCount}</span>
-            </div>
-
-            {/* Scrollable roster items column list wrapper */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar text-sm">
-              {/* SECTION: SERVER OWNERS */}
-              {computedServerRoster.owners.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-[11px] font-bold text-amber-500 tracking-wider uppercase flex items-center gap-1">
-                    <span>Owner — {computedServerRoster.owners.length}</span>
-                  </h4>
-                  <div className="space-y-1">
-                    {computedServerRoster.owners.map((member) => (
-                      <div
-                        key={member.id}
-                        className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-white/5 cursor-pointer transition-all group"
-                      >
-                        {/* AVATAR WRAPPER WITH REALTIME STATUS BADGE */}
-                        <div className="relative w-8 h-8 flex-shrink-0">
-                          {member.avatarUrl ? (
-                            <img
-                              src={member.avatarUrl}
-                              alt={member.username}
-                              className="w-8 h-8 rounded-full object-cover"
-                            />
-                          ) : (
-                            <div
-                              className={`w-8 h-8 rounded-full bg-gradient-to-br ${getAvatarColor(member.username)} flex items-center justify-center font-bold text-white text-xs`}
-                            >
-                              {member.username?.charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                          {/* Dynamic Indicator Dot Alignment */}
-                          <div
-                            className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#1e293b]
-                      ${member.status === "online" ? "bg-green-500" : member.status === "idle" ? "bg-yellow-500" : "bg-gray-500"}`}
-                          />
-                        </div>
-
-                        <span className="font-medium text-amber-400 truncate flex-1 group-hover:text-amber-300">
-                          {member.username}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* SECTION: STANDARD MEMBERS */}
-              <div className="space-y-2">
-                <h4 className="text-[11px] font-bold text-gray-300 tracking-wider uppercase">
-                  <span>
-                    Members — {computedServerRoster.standardMembers.length}
-                  </span>
-                </h4>
-                <div className="space-y-1">
-                  {computedServerRoster.standardMembers.map((member) => (
-                    <div
-                      key={member.id}
-                      className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-white/5 cursor-pointer transition-all group"
-                    >
-                      {/* AVATAR WRAPPER WITH REALTIME STATUS BADGE */}
-                      <div className="relative w-8 h-8 flex-shrink-0">
-                        {member.avatarUrl ? (
-                          <img
-                            src={member.avatarUrl}
-                            alt={member.username}
-                            className="w-8 h-8 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div
-                            className={`w-8 h-8 rounded-full bg-gradient-to-br ${getAvatarColor(member.username)} flex items-center justify-center font-bold text-white text-xs`}
-                          >
-                            {member.username?.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                        {/* Dynamic Indicator Dot Alignment */}
-                        <div
-                          className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#1e293b]
-                    ${member.status === "online" ? "bg-green-500" : member.status === "idle" ? "bg-yellow-500" : "bg-gray-500"}`}
-                        />
-                      </div>
-
-                      <span className="font-medium text-gray-300 truncate flex-1 group-hover:text-gray-100">
-                        {member.username}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+          <SidebarMember
+            computedServerRoster={computedServerRoster}
+            getAvatarColor={getAvatarColor}
+          />
         </div>
       );
     }
@@ -824,6 +789,7 @@ export default function App() {
             setCommunitySearch={setCommunitySearch}
             communities={communities}
             getAvatarColor={getAvatarColor}
+            onJoinServer={handleJoinServer}
           />
         );
       default:
@@ -862,6 +828,7 @@ export default function App() {
             activeDM={activeDM}
             setActiveDM={setActiveDM}
             getAvatarColor={getAvatarColor}
+            onLeaveServer={handleLeaveServer}
           />
         </div>
         <UserPanel
