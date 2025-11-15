@@ -1,10 +1,16 @@
-import pool from "./db.js";
+import pool from "./config/db.js";
 import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import cookie from "cookie";
+import {
+  sendDMMessage,
+  sendChannelMessage,
+} from "./controllers/messageController.js";
+
+let io;
 
 export const initSocket = (server) => {
-  const io = new Server(server, {
+  io = new Server(server, {
     cors: {
       origin: process.env.CLIENT_URL || "http://localhost:5173",
       credentials: true,
@@ -83,8 +89,24 @@ export const initSocket = (server) => {
 
     socket.on("join_room", async (roomId) => {
       try {
+        if (roomId.startsWith("server_")) {
+          const serverId = Number(roomId.replace("server_", ""));
+
+          const result = await pool.query(
+            `SELECT 1
+             FROM server_members
+             WHERE server_id = $1
+             AND member_id = $2`,
+            [serverId, socket.userId],
+          );
+
+          if (result.rowCount === 0) {
+            return;
+          }
+        }
+
         if (roomId.startsWith("channel_")) {
-          const channelId = parseInt(roomId.replace("channel_", ""), 10);
+          const channelId = Number(roomId.replace("channel_", ""));
 
           const result = await pool.query(
             `SELECT 1
@@ -102,7 +124,7 @@ export const initSocket = (server) => {
         }
 
         if (roomId.startsWith("dm_")) {
-          const conversationId = parseInt(roomId.replace("dm_", ""), 10);
+          const conversationId = Number(roomId.replace("dm_", ""));
 
           const result = await pool.query(
             `SELECT 1
@@ -127,101 +149,6 @@ export const initSocket = (server) => {
     socket.on("leave_room", (roomId) => {
       socket.leave(roomId);
       console.log(`User ${socket.id} left room: ${roomId}`);
-    });
-
-    socket.on("send_message", async (data) => {
-      const { roomId, message } = data;
-      const senderId = socket.userId;
-      const cleanMessage = message.trim();
-
-      if (!roomId || cleanMessage.length === 0) return;
-
-      try {
-        if (roomId.startsWith("channel_")) {
-          const channelId = parseInt(roomId.replace("channel_", ""), 10);
-
-          if (isNaN(channelId)) return;
-
-          const permission = await pool.query(
-            `SELECT 1
-             FROM server_members sm
-             JOIN channels c
-             ON c.server_id = sm.server_id
-             WHERE sm.member_id = $1
-             AND c.id = $2`,
-            [senderId, channelId],
-          );
-
-          if (permission.rowCount === 0) {
-            return;
-          }
-
-          await pool.query(
-            "INSERT INTO channel_messages (message, channel_id, sender_id) VALUES ($1, $2, $3)",
-            [message, channelId, senderId],
-          );
-
-          const membersResult = await pool.query(
-            `SELECT member_id FROM server_members 
-             WHERE server_id = (SELECT server_id FROM channels WHERE id = $1)
-             AND member_id != $2`,
-            [channelId, senderId],
-          );
-
-          for (const member of membersResult.rows) {
-            if (member.member_id) {
-              const personalRoom = `user_${member.member_id}`;
-
-              io.to(personalRoom).emit("channel_unread_notification", {
-                channelId: channelId,
-              });
-            }
-          }
-        } else if (roomId.startsWith("dm_")) {
-          const conversationId = parseInt(roomId.replace("dm_", ""), 10);
-
-          if (isNaN(conversationId)) return;
-
-          const permission = await pool.query(
-            `SELECT 1
-             FROM conversations
-             WHERE id = $1
-             AND (user_one_id = $2 OR user_two_id = $2)`,
-            [conversationId, senderId],
-          );
-
-          if (permission.rowCount === 0) {
-            return;
-          }
-
-          await pool.query(
-            "INSERT INTO direct_messages (message, conversation_id, sender_id) VALUES ($1, $2, $3)",
-            [message, conversationId, senderId],
-          );
-
-          const receiverResult = await pool.query(
-            `SELECT
-             CASE
-              WHEN user_one_id = $1 THEN user_two_id
-              ELSE user_one_id
-             END AS receiver_id
-             FROM conversations
-             WHERE id = $2`,
-            [senderId, conversationId],
-          );
-
-          const receiverId = receiverResult.rows[0].receiver_id;
-
-          io.to(`user_${receiverId}`).emit("dm_unread_notification", {
-            conversationId: conversationId,
-          });
-        }
-      } catch (error) {
-        console.error("DB Error inside send_message:", error.message);
-      }
-
-      const broadcastData = { ...data, senderId };
-      socket.to(roomId).emit("receive_message", broadcastData);
     });
 
     socket.on("update_status", async ({ status }) => {
@@ -285,3 +212,11 @@ export const initSocket = (server) => {
 
   return io;
 };
+
+export function getIO() {
+  if (!io) {
+    throw new Error("Socket.IO has not been initialized.");
+  }
+
+  return io;
+}

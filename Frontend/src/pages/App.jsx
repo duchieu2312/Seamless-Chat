@@ -74,6 +74,12 @@ export default function App() {
     friend: null,
   });
 
+  // Synchronize dynamic server reference for Socket listeners securely
+  const activeServerRef = useRef(activeServer);
+  useEffect(() => {
+    activeServerRef.current = activeServer;
+  }, [activeServer]);
+
   // Synchronize dynamic channel reference for Socket listeners securely
   const activeChannelRef = useRef(activeChannel);
   useEffect(() => {
@@ -90,44 +96,88 @@ export default function App() {
   // DATA FETCHING & WEBSOCKETS
   // ==========================================
 
-  // Fetch initial public communities and joined servers list on login
+  // Fetch data on login
+  const fetchServersPublic = useCallback(async () => {
+    try {
+      const res = await axiosInstance.get("/servers/public");
+      setCommunities(res.data);
+    } catch (err) {
+      console.error("Failed to fetch public servers:", err);
+    }
+  }, []);
+
+  const fetchServersJoined = useCallback(async () => {
+    try {
+      const res = await axiosInstance.get("/servers/joined");
+      setServers(res.data);
+
+      // Auto-select the first server if no historical active server is stored
+      if (res.data.length > 0 && !localStorage.getItem("last_active_server")) {
+        const defaultServerId = res.data[0].id;
+        setActiveServer(defaultServerId);
+        localStorage.setItem("last_active_server", defaultServerId);
+      }
+    } catch (err) {
+      console.error("Failed to fetch joined servers:", err);
+    }
+  }, []);
+
+  const fetchFriends = useCallback(async () => {
+    try {
+      const res = await axiosInstance.get("/users/friends");
+      setFriends(res.data);
+    } catch (err) {
+      console.error("Failed to fetch friends:", err);
+    }
+  }, []);
+
+  const fetchPendingRequests = useCallback(async () => {
+    try {
+      const res = await axiosInstance.get("/users/friends/pending");
+      setPendingRequests(res.data);
+    } catch (err) {
+      console.error("Failed to fetch pending requests:", err);
+    }
+  }, []);
+
+  const fetchBlockedUsers = useCallback(async () => {
+    try {
+      const res = await axiosInstance.get("/users/friends/blocked");
+      setBlockedUsers(res.data);
+    } catch (err) {
+      console.error("Failed to fetch blocked users:", err);
+    }
+  }, []);
+
+  const fetchServerMembers = useCallback(async (serverId) => {
+    try {
+      const res = await axiosInstance.get(`servers/${serverId}/members`);
+      setServerMembers(res.data);
+    } catch (err) {
+      console.error("Failed to fetch members:", err);
+    }
+  }, []);
+
   useEffect(() => {
     if (!user) return;
-
-    const fetchServerData = async () => {
-      try {
-        const [publicRes, joinedRes, friendsRes, pendingRes, blockedRes] =
-          await Promise.all([
-            axiosInstance.get("/servers/public"),
-            axiosInstance.get("/servers/joined"),
-            axiosInstance.get("/users/friends"),
-            axiosInstance.get("/users/friends/pending"),
-            axiosInstance.get("/users/friends/blocked"),
-          ]);
-
-        setCommunities(publicRes.data);
-        setServers(joinedRes.data);
-        setFriends(friendsRes.data);
-        setPendingRequests(pendingRes.data);
-        setBlockedUsers(blockedRes.data);
-
-        // Auto-select the first server if no historical active server is stored
-        if (
-          joinedRes.data.length > 0 &&
-          !localStorage.getItem("last_active_server")
-        ) {
-          const defaultServerId = joinedRes.data[0].id;
-          setActiveServer(defaultServerId);
-          localStorage.setItem("last_active_server", defaultServerId);
-        }
-      } catch (err) {
-        console.error("Error fetching base server catalogs:", err);
-        toast.error("Failed to load server list.");
-      }
-    };
-
-    fetchServerData();
-  }, [user]);
+    Promise.all([
+      fetchServersPublic(),
+      fetchServersJoined(),
+      fetchFriends(),
+      fetchPendingRequests(),
+      fetchBlockedUsers(),
+    ]).catch((err) => {
+      console.error(err);
+      toast.error("Failed to load application data.");
+    });
+  }, [
+    user,
+    fetchServersPublic,
+    fetchServersJoined,
+    fetchFriends,
+    fetchPendingRequests,
+    fetchBlockedUsers,
+  ]);
 
   // Initialize Socket.io connection and establish global event listeners
   useEffect(() => {
@@ -140,14 +190,14 @@ export default function App() {
       const { roomId } = incomingMsg;
 
       if (roomId.startsWith("dm_")) {
-        const conversationId = parseInt(roomId.replace("dm_", ""), 10);
+        const conversationId = Number(roomId.replace("dm_", ""));
 
         setDmMessages((prev) => ({
           ...prev,
           [conversationId]: [...(prev[conversationId] || []), incomingMsg],
         }));
       } else if (roomId.startsWith("channel_")) {
-        const channelId = parseInt(roomId.replace("channel_", ""), 10);
+        const channelId = Number(roomId.replace("channel_", ""));
 
         setChannelMessages((prev) => ({
           ...prev,
@@ -157,13 +207,11 @@ export default function App() {
     });
 
     // Handle background notification increments for other channels
-    socketRef.current.on("channel_unread_notification", (data) => {
-      const { channelId } = data;
-
-      if (parseInt(channelId) !== parseInt(activeChannelRef.current)) {
+    socketRef.current.on("channel_unread_notification", ({ channelId }) => {
+      if (Number(channelId) !== Number(activeChannelRef.current)) {
         setTextChannels((prevChannels) =>
           prevChannels.map((c) =>
-            parseInt(c.id) === parseInt(channelId)
+            Number(c.id) === Number(channelId)
               ? { ...c, unread: (c.unread || 0) + 1 }
               : c,
           ),
@@ -172,13 +220,11 @@ export default function App() {
     });
 
     // Handle background notification increments for other DMs
-    socketRef.current.on("dm_unread_notification", (data) => {
-      const { conversationId } = data;
-
-      if (parseInt(conversationId) !== parseInt(activeDMRef.current)) {
+    socketRef.current.on("dm_unread_notification", ({ conversationId }) => {
+      if (Number(conversationId) !== Number(activeDMRef.current)) {
         setFriends((prevFriends) =>
           prevFriends.map((f) =>
-            parseInt(f.conversationId) === parseInt(conversationId)
+            Number(f.conversationId) === Number(conversationId)
               ? {
                   ...f,
                   unread: (f.unread || 0) + 1,
@@ -208,13 +254,49 @@ export default function App() {
       );
     });
 
+    socketRef.current.on("friends_updated", fetchFriends);
+
+    socketRef.current.on("pending_updated", fetchPendingRequests);
+
+    socketRef.current.on("blocked_updated", fetchBlockedUsers);
+
+    socketRef.current.on("servers_updated", () => {
+      fetchServersJoined();
+      fetchServersPublic();
+    });
+
+    socketRef.current.on("server_members_updated", ({ serverId }) => {
+      if (Number(serverId) === Number(activeServerRef.current)) {
+        fetchServerMembers(serverId);
+      }
+    });
+
     return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
+      if (!socketRef.current) return;
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    };
+  }, [
+    user,
+    fetchServersPublic,
+    fetchServersJoined,
+    fetchFriends,
+    fetchPendingRequests,
+    fetchBlockedUsers,
+    fetchServerMembers,
+  ]);
+
+  // Join or leave specific Socket rooms when changing active server
+  useEffect(() => {
+    if (activeServer && socketRef.current) {
+      socketRef.current.emit("join_room", `server_${activeServer}`);
+    }
+    return () => {
+      if (activeServer && socketRef.current) {
+        socketRef.current.emit("leave_room", `server_${activeServer}`);
       }
     };
-  }, [user]);
+  }, [activeServer]);
 
   // Join or leave specific Socket rooms when changing active text channel
   useEffect(() => {
@@ -263,11 +345,11 @@ export default function App() {
           if (text.length > 0 && !prevHistory[activeServer]) {
             const savedChannelId = localStorage.getItem("last_active_channel");
             const parsedSavedId = savedChannelId
-              ? parseInt(savedChannelId)
+              ? Number(savedChannelId)
               : null;
 
             const existsInServer = text.some(
-              (c) => parseInt(c.id) === parsedSavedId,
+              (c) => Number(c.id) === parsedSavedId,
             );
             const targetId = existsInServer ? parsedSavedId : text[0].id;
 
@@ -312,13 +394,13 @@ export default function App() {
 
     setTextChannels((prevChannels) =>
       prevChannels.map((c) =>
-        parseInt(c.id) === parseInt(activeChannel) ? { ...c, unread: 0 } : c,
+        Number(c.id) === Number(activeChannel) ? { ...c, unread: 0 } : c,
       ),
     );
 
     const updateLastRead = () => {
       axiosInstance
-        .post(`/channels/${activeChannel}/last-read`)
+        .post(`/channels/${activeChannel}/last_read`)
         .catch((err) =>
           console.error("Error updating last read position:", err),
         );
@@ -363,7 +445,7 @@ export default function App() {
 
     setFriends((prevFriends) =>
       prevFriends.map((f) =>
-        parseInt(f.conversationId) === parseInt(activeDM)
+        Number(f.conversationId) === Number(activeDM)
           ? {
               ...f,
               unread: 0,
@@ -374,7 +456,7 @@ export default function App() {
 
     const updateLastRead = () => {
       axiosInstance
-        .post(`/conversations/${activeDM}/last-read`)
+        .post(`/conversations/${activeDM}/last_read`)
         .catch(console.error);
     };
 
@@ -444,58 +526,22 @@ export default function App() {
     [activeServer],
   );
 
-  const handleSendMessage = (e) => {
+  const handleSendChannelMessage = async (e, message) => {
     e.preventDefault();
-    if (!newMessage.trim()) return;
-
-    const newMsg = {
-      id: crypto.randomUUID() || Date.now(),
-      roomId: `channel_${activeChannel}`,
-      username: user?.username || "you",
-      message: newMessage.trim(),
-      avatarUrl: user?.avatarUrl || null,
-      time: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
-
-    if (socketRef.current) {
-      socketRef.current.emit("send_message", newMsg);
-    }
-
-    setChannelMessages((prev) => ({
-      ...prev,
-      [activeChannel]: [...(prev[activeChannel] || []), newMsg],
-    }));
-    setNewMessage("");
+    if (!message.trim() || !activeChannel) return;
+    await axiosInstance.post("/channels/send_messages", {
+      channelId: activeChannel,
+      message: message,
+    });
   };
 
-  const handleSendDM = (e) => {
+  const handleSendDM = async (e, message) => {
     e.preventDefault();
-    if (!newMessage.trim() || !activeDM) return;
-
-    const newMsg = {
-      id: crypto.randomUUID() || Date.now(),
-      roomId: `dm_${activeDM}`,
-      username: user?.username || "you",
-      message: newMessage.trim(),
-      avatarUrl: user?.avatarUrl || null,
-      time: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
-
-    if (socketRef.current) {
-      socketRef.current.emit("send_message", newMsg);
-    }
-
-    setDmMessages((prev) => ({
-      ...prev,
-      [activeDM]: [...(prev[activeDM] || []), newMsg],
-    }));
-    setNewMessage("");
+    if (!message.trim() || !activeDM) return;
+    await axiosInstance.post("/conversations/send_messages", {
+      conversationId: activeDM,
+      message: message,
+    });
   };
 
   const handleJoinVoice = useCallback((channelId) => {
@@ -735,7 +781,7 @@ export default function App() {
               messages={channelMessages[activeChannel] || []}
               newMessage={newMessage}
               setNewMessage={setNewMessage}
-              onSendMessage={handleSendMessage}
+              onSendMessage={handleSendChannelMessage}
               getAvatarColor={getAvatarColor}
             />
           </div>

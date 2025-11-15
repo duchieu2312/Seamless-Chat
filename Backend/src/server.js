@@ -4,7 +4,7 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import authenticateToken from "./middlewares/authMiddleware.js";
 import { createServer } from "node:http";
-import { initSocket } from "./config/socket.js";
+import { initSocket } from "./socket.js";
 import { startTokenCleanupJob } from "./utils/cleanupTokens.js";
 import { loginLimiter, refreshLimiter } from "./middlewares/rateLimiter.js";
 import {
@@ -31,14 +31,16 @@ import {
   leaveServer,
   getJoinedServers,
   getServerChannels,
-  getChannelMessages,
   getServerMembers,
-  updateLastSeen,
 } from "./controllers/serverController.js";
 import {
   getDirectMessages,
+  sendDMMessage,
   updateDmLastSeen,
-} from "./controllers/directMessageController.js";
+  getChannelMessages,
+  sendChannelMessage,
+  updateChannelLastSeen,
+} from "./controllers/messageController.js";
 
 // SETUP
 const app = express();
@@ -69,18 +71,26 @@ app.get("/api/users/friends/pending", authenticateToken, getPendingRequests);
 app.get("/api/users/friends/blocked", authenticateToken, getBlockedUsers);
 app.post("/api/users/friends/request", authenticateToken, sendFriendRequest);
 app.post(
-  "/api/users/friends/accept/:id",
+  "/api/users/friends/accept/:senderId",
   authenticateToken,
   acceptFriendRequest,
 );
 app.delete(
-  "/api/users/friends/decline/:id",
+  "/api/users/friends/decline/:senderId",
   authenticateToken,
   declineFriendRequest,
 );
-app.post("/api/users/friends/block/:id", authenticateToken, blockUser);
-app.delete("/api/users/friends/unblock/:id", authenticateToken, unblockUser);
-app.delete("/api/users/friends/unfriend/:id", authenticateToken, unfriend);
+app.post("/api/users/friends/block/:targetId", authenticateToken, blockUser);
+app.delete(
+  "/api/users/friends/unblock/:targetId",
+  authenticateToken,
+  unblockUser,
+);
+app.delete(
+  "/api/users/friends/unfriend/:targetId",
+  authenticateToken,
+  unfriend,
+);
 
 // SERVER ROUTES
 app.get("/api/servers/public", authenticateToken, getPublicWithJoinStatus);
@@ -92,28 +102,30 @@ app.get(
   authenticateToken,
   getServerChannels,
 );
-app.get(
-  "/api/channels/:channelId/messages",
-  authenticateToken,
-  getChannelMessages,
-);
 app.get("/api/servers/:serverId/members", authenticateToken, getServerMembers);
-app.post(
-  "/api/channels/:channelId/last-read",
-  authenticateToken,
-  updateLastSeen,
-);
 
-// DIRECT MESSAGE ROUTES
+// MESSAGE ROUTES
 app.get(
   "/api/conversations/:conversationId/messages",
   authenticateToken,
   getDirectMessages,
 );
+app.post("/api/conversations/send_messages", authenticateToken, sendDMMessage);
 app.post(
-  "/api/conversations/:conversationId/last-read",
+  "/api/conversations/:conversationId/last_read",
   authenticateToken,
   updateDmLastSeen,
+);
+app.get(
+  "/api/channels/:channelId/messages",
+  authenticateToken,
+  getChannelMessages,
+);
+app.post("/api/channels/send_messages", authenticateToken, sendChannelMessage);
+app.post(
+  "/api/channels/:channelId/last_read",
+  authenticateToken,
+  updateChannelLastSeen,
 );
 
 // START SERVER

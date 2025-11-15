@@ -1,4 +1,5 @@
 import pool from "../config/db.js";
+import { getIO } from "../socket.js";
 
 export async function getPublicWithJoinStatus(req, res) {
   try {
@@ -34,6 +35,11 @@ export async function joinServer(req, res) {
   try {
     const userId = req.user.id;
     const { serverId } = req.params;
+    const cleanServerId = Number(serverId);
+
+    if (isNaN(cleanServerId)) {
+      return res.status(400).json({ message: "Invalid server ID format" });
+    }
 
     await client.query("BEGIN");
 
@@ -41,7 +47,7 @@ export async function joinServer(req, res) {
       `SELECT s.id, s.is_public
        FROM servers s
        WHERE s.id = $1`,
-      [serverId],
+      [cleanServerId],
     );
 
     if (serverResult.rowCount === 0) {
@@ -59,7 +65,7 @@ export async function joinServer(req, res) {
        FROM server_members sm
        WHERE sm.server_id = $1
        AND sm.member_id = $2`,
-      [serverId, userId],
+      [cleanServerId, userId],
     );
 
     if (joined.rowCount > 0) {
@@ -72,10 +78,17 @@ export async function joinServer(req, res) {
     await client.query(
       `INSERT INTO server_members(server_id, member_id)
        VALUES($1,$2)`,
-      [serverId, userId],
+      [cleanServerId, userId],
     );
 
     await client.query("COMMIT");
+
+    const io = getIO();
+
+    io.to(`user_${userId}`).emit("servers_updated");
+    io.to(`server_${cleanServerId}`).emit("server_members_updated", {
+      serverId: cleanServerId,
+    });
 
     res.json({ message: "Joined server successfully." });
   } catch (err) {
@@ -88,15 +101,20 @@ export async function joinServer(req, res) {
 
 export async function leaveServer(req, res) {
   try {
-    const { serverId } = req.params;
     const userId = req.user.id;
+    const { serverId } = req.params;
+    const cleanServerId = Number(serverId);
+
+    if (isNaN(cleanServerId)) {
+      return res.status(400).json({ message: "Invalid server ID format" });
+    }
 
     const member = await pool.query(
       `SELECT role
        FROM server_members
        WHERE server_id = $1
        AND member_id = $2`,
-      [serverId, userId],
+      [cleanServerId, userId],
     );
 
     if (member.rowCount === 0) {
@@ -115,8 +133,15 @@ export async function leaveServer(req, res) {
       `DELETE FROM server_members
        WHERE server_id = $1
        AND member_id = $2`,
-      [serverId, userId],
+      [cleanServerId, userId],
     );
+
+    const io = getIO();
+
+    io.to(`user_${userId}`).emit("servers_updated");
+    io.to(`server_${cleanServerId}`).emit("server_members_updated", {
+      serverId: cleanServerId,
+    });
 
     return res.json({ message: "Left server successfully." });
   } catch (err) {
@@ -145,8 +170,13 @@ export async function getJoinedServers(req, res) {
 
 export async function getServerChannels(req, res) {
   try {
-    const { serverId } = req.params;
     const userId = req.user.id;
+    const { serverId } = req.params;
+    const cleanServerId = Number(serverId);
+
+    if (isNaN(cleanServerId)) {
+      return res.status(400).json({ message: "Invalid server ID format" });
+    }
 
     const result = await pool.query(
       `SELECT 
@@ -163,37 +193,7 @@ export async function getServerChannels(req, res) {
        FROM channels c
        WHERE c.server_id = $2 
        ORDER BY c.id ASC`,
-      [userId, serverId],
-    );
-
-    return res.json(result.rows);
-  } catch (err) {
-    return res.status(500).json({ message: err.message });
-  }
-}
-
-export async function getChannelMessages(req, res) {
-  try {
-    const { channelId } = req.params;
-    const cleanChannelId = parseInt(channelId, 10);
-
-    if (isNaN(cleanChannelId)) {
-      return res.status(400).json({ message: "Invalid channel ID" });
-    }
-
-    const result = await pool.query(
-      `SELECT 
-        cm.id,
-        cm.channel_id AS "channelId",
-        u.username,
-        u.avatar_url AS "avatarUrl",
-        cm.message,
-        TO_CHAR(cm.sent_at, 'HH:MI AM') AS "time"
-       FROM channel_messages cm
-       JOIN users u ON cm.sender_id = u.id
-       WHERE cm.channel_id = $1 
-       ORDER BY cm.sent_at ASC`,
-      [cleanChannelId],
+      [userId, cleanServerId],
     );
 
     return res.json(result.rows);
@@ -205,7 +205,7 @@ export async function getChannelMessages(req, res) {
 export async function getServerMembers(req, res) {
   try {
     const { serverId } = req.params;
-    const cleanServerId = parseInt(serverId, 10);
+    const cleanServerId = Number(serverId);
 
     if (isNaN(cleanServerId)) {
       return res.status(400).json({ message: "Invalid server ID format" });
@@ -231,25 +231,6 @@ export async function getServerMembers(req, res) {
     return res.json(result.rows);
   } catch (err) {
     console.error("Error inside getServerMembers controller:", err);
-    return res.status(500).json({ message: err.message });
-  }
-}
-
-export async function updateLastSeen(req, res) {
-  try {
-    const { channelId } = req.params;
-    const userId = req.user.id;
-
-    await pool.query(
-      `INSERT INTO channel_read_states (user_id, channel_id, last_read_at)
-       VALUES ($1, $2, CURRENT_TIMESTAMP)
-       ON CONFLICT (user_id, channel_id) 
-       DO UPDATE SET last_read_at = CURRENT_TIMESTAMP`,
-      [userId, channelId],
-    );
-
-    return res.json({ success: true });
-  } catch (err) {
     return res.status(500).json({ message: err.message });
   }
 }

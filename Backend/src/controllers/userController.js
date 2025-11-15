@@ -1,4 +1,5 @@
 import pool from "../config/db.js";
+import { getIO } from "../socket.js";
 
 export async function getUserInfo(req, res) {
   try {
@@ -205,6 +206,10 @@ export async function sendFriendRequest(req, res) {
       [senderId, targetId],
     );
 
+    const io = getIO();
+
+    io.to(`user_${targetId}`).emit("pending_updated");
+
     return res
       .status(201)
       .json({ message: "Friend request sent successfully." });
@@ -219,7 +224,7 @@ export async function acceptFriendRequest(req, res) {
   const client = await pool.connect();
   try {
     const userId = req.user.id;
-    const senderId = req.params.id;
+    const { senderId } = req.params;
 
     await client.query("BEGIN");
 
@@ -256,6 +261,15 @@ export async function acceptFriendRequest(req, res) {
     );
 
     await client.query("COMMIT");
+
+    const io = getIO();
+
+    io.to(`user_${userId}`).emit("friends_updated");
+    io.to(`user_${senderId}`).emit("friends_updated");
+
+    io.to(`user_${userId}`).emit("pending_updated");
+    io.to(`user_${senderId}`).emit("pending_updated");
+
     return res.json({
       message: "Friend request accepted successfully.",
       conversationId: convRes.rows[0]?.id,
@@ -271,7 +285,7 @@ export async function acceptFriendRequest(req, res) {
 export async function declineFriendRequest(req, res) {
   try {
     const userId = req.user.id;
-    const senderId = req.params.id;
+    const { senderId } = req.params;
 
     const result = await pool.query(
       `DELETE FROM friendships
@@ -287,6 +301,11 @@ export async function declineFriendRequest(req, res) {
       });
     }
 
+    const io = getIO();
+
+    io.to(`user_${userId}`).emit("pending_updated");
+    io.to(`user_${senderId}`).emit("pending_updated");
+
     return res.json({ message: "Friend request declined successfully." });
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -298,7 +317,7 @@ export async function blockUser(req, res) {
 
   try {
     const userId = req.user.id;
-    const targetId = req.params.id;
+    const { targetId } = req.params;
 
     if (userId === targetId) {
       return res.status(400).json({ message: "You cannot block yourself." });
@@ -326,6 +345,14 @@ export async function blockUser(req, res) {
 
     await client.query("COMMIT");
 
+    const io = getIO();
+
+    io.to(`user_${userId}`).emit("friends_updated");
+    io.to(`user_${targetId}`).emit("friends_updated");
+    io.to(`user_${userId}`).emit("blocked_updated");
+    io.to(`user_${userId}`).emit("pending_updated");
+    io.to(`user_${targetId}`).emit("pending_updated");
+
     return res.json({ message: "User has been blocked." });
   } catch (err) {
     await client.query("ROLLBACK");
@@ -339,7 +366,7 @@ export async function blockUser(req, res) {
 export async function unblockUser(req, res) {
   try {
     const userId = req.user.id;
-    const targetId = req.params.id;
+    const { targetId } = req.params;
 
     const deleteRes = await pool.query(
       "DELETE FROM friendships WHERE user_id = $1 AND friend_id = $2 AND status = 'blocked'",
@@ -350,6 +377,10 @@ export async function unblockUser(req, res) {
       return res.status(404).json({ message: "This user is not blocked." });
     }
 
+    const io = getIO();
+
+    io.to(`user_${userId}`).emit("blocked_updated");
+
     return res.json({ message: "User has been unblocked." });
   } catch (err) {
     return res.status(500).json({ message: err.message });
@@ -359,7 +390,7 @@ export async function unblockUser(req, res) {
 export async function unfriend(req, res) {
   try {
     const userId = req.user.id;
-    const targetId = req.params.id;
+    const { targetId } = req.params;
 
     const result = await pool.query(
       `DELETE FROM friendships
@@ -375,6 +406,11 @@ export async function unfriend(req, res) {
         .status(404)
         .json({ message: "You are not friends with this user." });
     }
+
+    const io = getIO();
+
+    io.to(`user_${userId}`).emit("friends_updated");
+    io.to(`user_${targetId}`).emit("friends_updated");
 
     return res.json({ message: "Friend removed successfully." });
   } catch (err) {
