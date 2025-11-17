@@ -1,172 +1,56 @@
-import { motion } from "framer-motion";
-import { FiHash, FiSend } from "react-icons/fi";
-import { HiChatBubbleLeftRight } from "react-icons/hi2";
-import React, { useEffect, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import ChatHeader from "./ChatArea/ChatHeader";
+import MessageList from "./ChatArea//MessageList";
+import MessageInput from "./ChatArea//MessageInput";
 
-function ChatArea({
-  channel,
-  messages = [],
-  newMessage,
-  setNewMessage,
-  onSendMessage,
-  isDM = false,
-  getAvatarColor,
-}) {
+function ChatArea(props) {
+  const { channel, messages, onSendMessage, isDM, getAvatarColor } = props;
+
+  const [message, setMessage] = useState("");
+
   const messagesEndRef = useRef(null);
   const isFirstLoad = useRef(true);
-  const currentChannelId = channel?.id;
 
-  // Reset first load anchor flag whenever the targeted active channel switches
   useEffect(() => {
     isFirstLoad.current = true;
-  }, [currentChannelId]);
+  }, [channel?.id]);
 
-  // Handle high-performance scrolling layout adjustments
   useEffect(() => {
-    if (messages.length > 0) {
-      if (isFirstLoad.current) {
-        // Instant teleport scroll to bottom on initial channel mounted
-        messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-        isFirstLoad.current = false;
-      } else {
-        // Smooth physics scroll when new realtime messages arrive
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }
-    }
+    if (!messages.length) return;
+
+    messagesEndRef.current?.scrollIntoView({
+      behavior: isFirstLoad.current ? "auto" : "smooth",
+    });
+
+    isFirstLoad.current = false;
   }, [messages]);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!newMessage || !newMessage.trim()) return;
-    onSendMessage(e);
-  };
-
-  // Helper template renderer to isolate dynamic main body container layout
-  const renderChatContent = () => {
-    if (messages.length === 0) {
-      return (
-        <div className="flex-1 flex flex-col items-center justify-center text-center p-8 select-none">
-          <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center text-gray-400 mb-4 border border-white/10">
-            <HiChatBubbleLeftRight size={32} />
-          </div>
-          <h3 className="text-xl font-bold text-gray-200 mb-1">
-            Welcome to
-            {isDM
-              ? ` @${channel?.name || "this chat"}`
-              : ` #${channel?.name || "this channel"}`}
-            !
-          </h3>
-          <p className="text-sm text-gray-500 max-w-sm">
-            This is the absolute start of the conversation history. Send a wave
-            to break the ice!
-          </p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0 custom-scrollbar">
-        {messages.map((msg) => (
-          <div key={msg.id} className="flex gap-3 group min-w-0">
-            {/* User Avatar Column */}
-            {msg.avatarUrl ? (
-              <img
-                src={msg.avatarUrl}
-                alt={msg.username}
-                className="w-10 h-10 rounded-full object-cover flex-shrink-0 shadow-md"
-              />
-            ) : (
-              <div
-                className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarColor(msg.username)} flex items-center justify-center font-bold text-white text-sm select-none flex-shrink-0 shadow-md`}
-              >
-                {msg.username?.charAt(0).toUpperCase() || "?"}
-              </div>
-            )}
-
-            {/* Message Metadata & Text Bubble Content Box */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-baseline gap-2 mb-1">
-                <span
-                  className="font-semibold text-gray-200 truncate max-w-[220px] cursor-pointer hover:underline"
-                  title={msg.username}
-                >
-                  {msg.username}
-                </span>
-                <span
-                  className="text-[10px] text-gray-500 flex-shrink-0 select-none"
-                  title={msg.time}
-                >
-                  {msg.time}
-                </span>
-              </div>
-              <div className="text-sm text-gray-200 bg-white/5 border border-white/5 backdrop-blur-sm px-4 py-2 rounded-2xl rounded-tl-sm inline-block max-w-full break-words shadow-sm">
-                {msg.message}
-              </div>
-            </div>
-          </div>
-        ))}
-        {/* Dummy div anchor anchor target to force scrolling position mechanics */}
-        <div ref={messagesEndRef} />
-      </div>
-    );
-  };
-
   return (
-    <div className="flex flex-col h-full w-full min-w-0 bg-slate-900/10">
-      {/* ==========================================
-          CHAT AREA HEADER BAR
-         ========================================== */}
-      <div className="h-14 px-6 border-b border-white/5 bg-black/20 backdrop-blur-xl flex items-center gap-3 flex-shrink-0 select-none">
-        {!isDM ? (
-          <FiHash size={22} className="text-gray-400 flex-shrink-0" />
-        ) : (
-          <div
-            className={`w-8 h-8 rounded-full bg-gradient-to-br ${getAvatarColor(channel?.name || "?")} flex items-center justify-center text-xs font-bold text-white select-none flex-shrink-0`}
-          >
-            {channel?.name?.[0]?.toUpperCase() || "?"}
-          </div>
-        )}
-        <span className="font-bold text-lg text-white truncate">
-          {channel?.name || "Select a chat room"}
-        </span>
-      </div>
+    <div className="flex flex-col flex-1 min-w-0 h-full">
+      <ChatHeader
+        channel={channel}
+        isDM={isDM}
+        getAvatarColor={getAvatarColor}
+      />
 
-      {/* ==========================================
-          DYNAMIC CHAT ENVIRONMENT
-         ========================================== */}
-      {renderChatContent()}
+      <MessageList
+        messages={messages}
+        isDM={isDM}
+        channel={channel}
+        getAvatarColor={getAvatarColor}
+        messagesEndRef={messagesEndRef}
+      />
 
-      {/* ==========================================
-          BOTTOM MESSAGE INPUT FORM CONTAINER
-         ========================================== */}
-      <div className="p-6 flex-shrink-0 bg-gradient-to-t from-[#1e293b]/20 to-transparent">
-        <form onSubmit={handleSubmit}>
-          <div className="relative flex items-center">
-            <input
-              type="text"
-              value={newMessage}
-              disabled={!channel}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder={
-                !channel
-                  ? "Select a channel first"
-                  : isDM
-                    ? `Message @${channel?.name || "..."}`
-                    : `Message #${channel?.name || "..."}`
-              }
-              className="w-full bg-white/5 backdrop-blur-xl border border-white/10 pl-5 pr-24 py-4 rounded-2xl text-sm placeholder:text-gray-600 focus:outline-none focus:border-indigo-500/50 focus:bg-white/10 transition-all text-white disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={!newMessage || !newMessage.trim()}
-              className="absolute right-2 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-30 disabled:hover:bg-indigo-500 px-4 py-2 rounded-xl text-sm font-semibold transition-all text-white flex items-center gap-1.5 shadow-md shadow-indigo-500/10"
-            >
-              <span>Send</span>
-              <FiSend size={14} className="mt-[1px]" />
-            </button>
-          </div>
-        </form>
-      </div>
+      <MessageInput
+        channel={channel}
+        isDM={isDM}
+        value={message}
+        onChange={setMessage}
+        onSend={(e) => {
+          onSendMessage(e, message);
+          setMessage("");
+        }}
+      />
     </div>
   );
 }

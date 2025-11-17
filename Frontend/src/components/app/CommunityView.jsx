@@ -1,14 +1,15 @@
 import { motion } from "framer-motion";
+import { useState } from "react";
 import { FiSearch } from "react-icons/fi";
 import { toast } from "sonner";
 
 export default function CommunityView({
-  communitySearch = "",
-  setCommunitySearch,
   communities = [],
   getAvatarColor,
   onJoinServer,
 }) {
+  const [communitySearch, setCommunitySearch] = useState("");
+
   const filteredCommunities = communities.filter((c) =>
     c.name.toLowerCase().includes(communitySearch.toLowerCase()),
   );

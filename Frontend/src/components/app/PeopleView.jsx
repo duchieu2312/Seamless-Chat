@@ -47,16 +47,18 @@ export default function PeopleView({
     }
   };
 
+  const search = debouncedFilter.toLowerCase();
+
   const filteredFriends = friends.filter((f) =>
-    f.username.toLowerCase().includes(debouncedFilter.toLowerCase()),
+    f.username.toLowerCase().includes(search),
   );
 
   const filteredPending = pendingRequests.filter((p) =>
-    p.username.toLowerCase().includes(debouncedFilter.toLowerCase()),
+    p.username.toLowerCase().includes(search),
   );
 
   const filteredBlocked = blockedUsers.filter((u) =>
-    u.username.toLowerCase().includes(debouncedFilter.toLowerCase()),
+    u.username.toLowerCase().includes(search),
   );
 
   return (

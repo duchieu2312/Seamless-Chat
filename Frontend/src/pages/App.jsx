@@ -65,8 +65,6 @@ export default function App() {
   const [serverMembers, setServerMembers] = useState([]);
 
   // INPUT STATES
-  const [newMessage, setNewMessage] = useState("");
-  const [communitySearch, setCommunitySearch] = useState("");
   const [isCreateServerOpen, setIsCreateServerOpen] = useState(false);
   const [confirmModal, setConfirmModal] = useState({
     open: false,
@@ -766,6 +764,15 @@ export default function App() {
     return { owners, standardMembers, totalCount: serverMembers.length };
   }, [serverMembers]);
 
+  const activeChannelData = useMemo(
+    () => textChannels.find((c) => c.id === activeChannel),
+    [textChannels, activeChannel],
+  );
+
+  const activeFriend = useMemo(
+    () => friends.find((f) => Number(f.conversationId) === Number(activeDM)),
+    [friends, activeDM],
+  );
   // ==========================================
   // DYNAMIC VIEW ROUTER RENDERING
   // ==========================================
@@ -777,10 +784,8 @@ export default function App() {
           {/* Main Communication Feed area */}
           <div className="flex-1 min-w-0 h-full">
             <ChatArea
-              channel={textChannels.find((c) => c.id === activeChannel)}
+              channel={activeChannelData}
               messages={channelMessages[activeChannel] || []}
-              newMessage={newMessage}
-              setNewMessage={setNewMessage}
               onSendMessage={handleSendChannelMessage}
               getAvatarColor={getAvatarColor}
             />
@@ -796,15 +801,10 @@ export default function App() {
 
     // 2. Render for HOME space view with active DM conversation
     if (activeDM) {
-      const targetFriend = friends.find(
-        (f) => Number(f.conversationId) === Number(activeDM),
-      );
       return (
         <ChatArea
-          channel={{ name: targetFriend?.username }}
+          channel={activeFriend}
           messages={dmMessages[activeDM] || []}
-          newMessage={newMessage}
-          setNewMessage={setNewMessage}
           onSendMessage={handleSendDM}
           isDM={true}
           getAvatarColor={getAvatarColor}
@@ -831,8 +831,6 @@ export default function App() {
       case "community":
         return (
           <CommunityView
-            communitySearch={communitySearch}
-            setCommunitySearch={setCommunitySearch}
             communities={communities}
             getAvatarColor={getAvatarColor}
             onJoinServer={handleJoinServer}
