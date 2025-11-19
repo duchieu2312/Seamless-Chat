@@ -5,19 +5,50 @@ import React from "react";
 
 function CreateServerModal({ isOpen, onClose, onCreateServer }) {
   const [serverName, setServerName] = useState("");
+  const [description, setDescription] = useState("");
+  const [isPublic, setIsPublic] = useState(true);
+  const [nameError, setNameError] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!serverName.trim()) return;
+
+    const cleanName = serverName.trim();
+
+    if (!cleanName) {
+      setNameError(true);
+      return;
+    }
+
+    setNameError(false);
 
     if (onCreateServer) {
-      onCreateServer({
-        name: serverName.trim(),
+      const success = await onCreateServer({
+        name: cleanName,
         iconUrl: null,
+        description: description.trim() || null,
+        isPublic,
       });
+
+      if (!success) {
+        setNameError(true);
+        return;
+      }
     }
+
     setServerName("");
+    setDescription("");
+    setIsPublic(true);
+    setNameError(false);
+
     onClose();
+  };
+
+  const handleNameChange = (e) => {
+    setServerName(e.target.value);
+
+    if (nameError) {
+      setNameError(false);
+    }
   };
 
   return (
@@ -63,6 +94,7 @@ function CreateServerModal({ isOpen, onClose, onCreateServer }) {
 
             {/* Creation Form Context */}
             <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Server Name */}
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
                   Server Name <span className="text-rose-500">*</span>
@@ -70,13 +102,60 @@ function CreateServerModal({ isOpen, onClose, onCreateServer }) {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Seamless Team"
+                  placeholder="e.g. Cool Server"
                   value={serverName}
-                  onChange={(e) => setServerName(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-black/20 border border-white/10 text-white focus:border-indigo-500/50 focus:outline-none transition-all text-sm placeholder:text-gray-600"
+                  onChange={handleNameChange}
+                  className={`w-full px-4 py-2.5 rounded-xl bg-black/20 border text-white focus:outline-none transition-all text-sm placeholder:text-gray-600 ${
+                    nameError
+                      ? "border-red-500 focus:border-red-500"
+                      : "border-white/10 focus:border-indigo-500/50"
+                  }`}
+                />
+                {nameError && (
+                  <p className="text-xs text-red-400 mt-2">
+                    This server name is already taken.
+                  </p>
+                )}
+              </div>
+              {/* Description */}
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="What is this server about?"
+                  rows={3}
+                  className="w-full px-4 py-2.5 rounded-xl bg-black/20 border border-white/10 text-white focus:border-indigo-500/50 focus:outline-none transition-all text-sm placeholder:text-gray-600 resize-none"
                 />
               </div>
-
+              {/* Is Public */}
+              <div className="flex items-center justify-between rounded-xl bg-black/20 border border-white/10 px-4 py-3">
+                <div className="flex-1 pr-4">
+                  <p className="text-sm font-semibold text-gray-200">
+                    Public Server
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Allow other users to discover and join this server.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={isPublic}
+                  onClick={() => setIsPublic((prev) => !prev)}
+                  className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${
+                    isPublic ? "bg-indigo-500" : "bg-gray-600"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                      isPublic ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
               {/* Action Buttons Interface */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/5 mt-6">
                 <button

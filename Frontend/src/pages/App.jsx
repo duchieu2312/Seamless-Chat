@@ -711,36 +711,49 @@ export default function App() {
     }
   };
 
-  const handleCreateServer = (newServerData) => {
-    const newId = Date.now();
-    const newServer = {
-      id: newId,
-      name: newServerData.name,
-      iconUrl: newServerData.iconUrl,
-    };
-    const defaultChannelId = Date.now() + 1;
+  const handleCreateServer = async (newServerData) => {
+    try {
+      const checkResponse = await axiosInstance.get(
+        "/servers/checkServerName",
+        {
+          params: {
+            name: newServerData.name,
+          },
+        },
+      );
 
-    setTextChannels((prev) => [
-      ...prev,
-      { id: defaultChannelId, serverId: newId, name: "general", unread: 0 },
-    ]);
-    setVoiceChannels((prev) => [
-      ...prev,
-      {
-        id: defaultChannelId + 1,
-        serverId: newId,
-        name: "General Voice",
-        connected: [],
-      },
-    ]);
-    setServers((prev) => [...prev, newServer]);
+      if (checkResponse.data.exists) {
+        toast.error(`Server name "${newServerData.name}" already exists.`);
 
-    setCurrentSpace("SERVER");
-    setActiveServer(newId);
-    setActiveChannel(defaultChannelId);
-    setServerHistory((prev) => ({ ...prev, [newId]: defaultChannelId }));
+        return false;
+      }
 
-    toast.success(`Server "${newServerData.name}" created successfully!`);
+      const response = await axiosInstance.post(
+        "/servers/createServer",
+        newServerData,
+      );
+
+      const { serverId, channelId } = response.data;
+
+      setCurrentSpace("SERVER");
+      setActiveServer(serverId);
+      setActiveChannel(channelId);
+
+      setServerHistory((prev) => ({
+        ...prev,
+        [serverId]: channelId,
+      }));
+
+      localStorage.setItem("last_current_space", "SERVER");
+      localStorage.setItem("last_active_server", serverId);
+      localStorage.setItem("last_active_channel", channelId);
+
+      toast.success(`Server "${newServerData.name}" created successfully!`);
+      return true;
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to create server");
+      return false;
+    }
   };
 
   // ==========================================

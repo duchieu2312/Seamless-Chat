@@ -60,7 +60,7 @@ export default function CommunityView({
                     {server.name}
                   </h3>
                   <p className="text-gray-400 text-sm mb-4 h-10 leading-relaxed">
-                    {server.description || "No description provided."}
+                    {server.description || ""}
                   </p>
                 </div>
                 <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-2">

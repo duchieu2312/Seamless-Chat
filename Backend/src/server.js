@@ -32,6 +32,8 @@ import {
   getJoinedServers,
   getServerChannels,
   getServerMembers,
+  checkServerName,
+  createNewServer,
 } from "./controllers/serverController.js";
 import {
   getDirectMessages,
@@ -103,6 +105,8 @@ app.get(
   getServerChannels,
 );
 app.get("/api/servers/:serverId/members", authenticateToken, getServerMembers);
+app.get("/api/servers/checkServerName", authenticateToken, checkServerName);
+app.post("/api/servers/createServer", authenticateToken, createNewServer);
 
 // MESSAGE ROUTES
 app.get(

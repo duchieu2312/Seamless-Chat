@@ -1,5 +1,6 @@
 import pool from "../config/db.js";
 import { getIO } from "../socket.js";
+import crypto from "crypto";
 
 export async function getPublicWithJoinStatus(req, res) {
   try {
@@ -232,5 +233,111 @@ export async function getServerMembers(req, res) {
   } catch (err) {
     console.error("Error inside getServerMembers controller:", err);
     return res.status(500).json({ message: err.message });
+  }
+}
+
+export async function checkServerName(req, res) {
+  try {
+    const { name } = req.query;
+    const cleanName = name?.trim();
+
+    if (!cleanName) {
+      return res.status(400).json({ message: "Server name is required." });
+    }
+
+    const result = await pool.query(
+      `SELECT EXISTS (
+       SELECT 1
+       FROM servers
+       WHERE name = $1
+      ) AS "exists"`,
+      [cleanName],
+    );
+
+    return res.json({ exists: result.rows[0].exists });
+  } catch (err) {
+    console.error("Error inside checkServerName controller:", err);
+    return res.status(500).json({ message: err.message });
+  }
+}
+
+export async function createNewServer(req, res) {
+  const client = await pool.connect();
+
+  try {
+    const userId = req.user.id;
+    const { name, iconUrl, description, isPublic = true } = req.body;
+    const cleanName = name?.trim();
+
+    if (!cleanName) {
+      return res.status(400).json({ message: "Server name is required." });
+    }
+
+    const cleanDescription = description?.trim() || null;
+
+    if (typeof isPublic !== "boolean") {
+      return res.status(400).json({ message: "Invalid public status." });
+    }
+
+    const inviteCode = crypto.randomBytes(12).toString("base64url");
+
+    await client.query("BEGIN");
+
+    const serverResult = await client.query(
+      `INSERT INTO servers (name,icon_url,description,invite_code,is_public,owner_id)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       RETURNING id`,
+      [
+        cleanName,
+        iconUrl || null,
+        cleanDescription,
+        inviteCode,
+        isPublic,
+        userId,
+      ],
+    );
+
+    const server = serverResult.rows[0];
+
+    await client.query(
+      `INSERT INTO server_members (server_id,member_id,role)
+       VALUES ($1, $2, 'owner')`,
+      [server.id, userId],
+    );
+
+    const channelResult = await client.query(
+      `INSERT INTO channels (name,type,server_id)
+       VALUES ('General', 'text', $1),
+              ('General Voice', 'voice', $1)
+       RETURNING id`,
+      [server.id],
+    );
+
+    await client.query("COMMIT");
+
+    const channel = channelResult.rows[0];
+
+    const io = getIO();
+
+    io.to(`user_${userId}`).emit("servers_updated");
+
+    return res.status(201).json({
+      message: "Server created successfully.",
+      serverId: server.id,
+      channelId: channel.id,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+
+    if (err.constraint === "servers_name_unique") {
+      return res.status(409).json({
+        message: "A server with this name already exists.",
+      });
+    }
+
+    console.error("Error inside createServer controller:", err);
+    return res.status(500).json({ message: err.message });
+  } finally {
+    client.release();
   }
 }

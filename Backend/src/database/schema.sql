@@ -36,7 +36,7 @@ CREATE TABLE friendships (
 
 CREATE TABLE servers (
 	id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-	name TEXT UNIQUE NOT NULL,
+	name TEXT NOT NULL,
 	icon_url TEXT,
 	description TEXT,
 	invite_code TEXT UNIQUE NOT NULL,
@@ -47,7 +47,9 @@ CREATE TABLE servers (
 	CONSTRAINT fk_server_owner
 	FOREIGN KEY (owner_id)
 	REFERENCES users(id)
-	ON DELETE SET NULL
+	ON DELETE SET NULL,
+
+	CONSTRAINT servers_name_unique UNIQUE (name)
 );
 
 CREATE TABLE server_members (
