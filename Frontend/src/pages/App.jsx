@@ -40,6 +40,13 @@ export default function App() {
   }); // "HOME" or "SERVER"
   const [activeHomeTab, setActiveHomeTab] = useState("home"); // "home", "people", "community"
 
+  // Community States
+  const [communities, setCommunities] = useState([]);
+  const [communityPage, setCommunityPage] = useState(1);
+  const [communityHasMore, setCommunityHasMore] = useState(true);
+  const [communityLoading, setCommunityLoading] = useState(false);
+  const [communitySearch, setCommunitySearch] = useState("");
+
   // FRIENDS / DIRECT MESSAGE STATES
   const [friends, setFriends] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
@@ -48,7 +55,6 @@ export default function App() {
   const [activeDM, setActiveDM] = useState(null); // Conversation ID for Direct Messages
 
   // SERVER STATES
-  const [communities, setCommunities] = useState([]);
   const [serverHistory, setServerHistory] = useState({});
   const [activeServer, setActiveServer] = useState(() => {
     const saved = localStorage.getItem("last_active_server");
@@ -94,17 +100,41 @@ export default function App() {
   // DATA FETCHING & WEBSOCKETS
   // ==========================================
 
-  // Fetch data on login
-  const fetchServersPublic = useCallback(async () => {
-    try {
-      const res = await axiosInstance.get("/servers/public");
-      setCommunities(res.data);
-    } catch (err) {
-      console.error("Failed to fetch public servers:", err);
-    }
-  }, []);
+  const fetchCommunities = useCallback(
+    async ({ page = 1, search = "", append = false } = {}) => {
+      try {
+        setCommunityLoading(true);
 
-  const fetchServersJoined = useCallback(async () => {
+        const response = await axiosInstance.get("/servers/public", {
+          params: {
+            page,
+            limit: 10,
+            search,
+          },
+        });
+
+        const { communities: newCommunities, hasMore } = response.data;
+
+        setCommunities((prev) =>
+          append ? [...prev, ...newCommunities] : newCommunities,
+        );
+
+        setCommunityPage(page);
+        setCommunityHasMore(hasMore);
+      } catch (err) {
+        console.error("Error fetching communities:", err);
+
+        toast.error(
+          err.response?.data?.message || "Failed to load communities",
+        );
+      } finally {
+        setCommunityLoading(false);
+      }
+    },
+    [],
+  );
+
+  const fetchJoinedServers = useCallback(async () => {
     try {
       const res = await axiosInstance.get("/servers/joined");
       setServers(res.data);
@@ -149,18 +179,18 @@ export default function App() {
 
   const fetchServerMembers = useCallback(async (serverId) => {
     try {
-      const res = await axiosInstance.get(`servers/${serverId}/members`);
+      const res = await axiosInstance.get(`/servers/${serverId}/members`);
       setServerMembers(res.data);
     } catch (err) {
       console.error("Failed to fetch members:", err);
     }
   }, []);
 
+  // Fetch initial application data after user authentication
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      fetchServersPublic(),
-      fetchServersJoined(),
+      fetchJoinedServers(),
       fetchFriends(),
       fetchPendingRequests(),
       fetchBlockedUsers(),
@@ -170,8 +200,7 @@ export default function App() {
     });
   }, [
     user,
-    fetchServersPublic,
-    fetchServersJoined,
+    fetchJoinedServers,
     fetchFriends,
     fetchPendingRequests,
     fetchBlockedUsers,
@@ -259,8 +288,12 @@ export default function App() {
     socketRef.current.on("blocked_updated", fetchBlockedUsers);
 
     socketRef.current.on("servers_updated", () => {
-      fetchServersJoined();
-      fetchServersPublic();
+      fetchCommunities({
+        page: 1,
+        search: "",
+        append: false,
+      });
+      fetchJoinedServers();
     });
 
     socketRef.current.on("server_members_updated", ({ serverId }) => {
@@ -276,8 +309,8 @@ export default function App() {
     };
   }, [
     user,
-    fetchServersPublic,
-    fetchServersJoined,
+    fetchCommunities,
+    fetchJoinedServers,
     fetchFriends,
     fetchPendingRequests,
     fetchBlockedUsers,
@@ -473,6 +506,19 @@ export default function App() {
     };
   }, [activeDM]);
 
+  // Debounce community search to avoid sending a request on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchCommunities({
+        page: 1,
+        search: communitySearch,
+        append: false,
+      });
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [fetchCommunities, communitySearch]);
+
   // ==========================================
   // ACTION EVENT HANDLERS
   // ==========================================
@@ -655,17 +701,34 @@ export default function App() {
     }
   };
 
+  const handleLoadMoreCommunities = useCallback(() => {
+    if (communityLoading || !communityHasMore) return;
+
+    fetchCommunities({
+      page: communityPage + 1,
+      search: communitySearch,
+      append: true,
+    });
+  }, [
+    fetchCommunities,
+    communityLoading,
+    communityHasMore,
+    communityPage,
+    communitySearch,
+  ]);
+
   const handleJoinServer = async (serverId) => {
     try {
       const response = await axiosInstance.post(`/servers/${serverId}/join`);
 
-      const [joinedRes, publicRes] = await Promise.all([
-        axiosInstance.get("/servers/joined"),
-        axiosInstance.get("/servers/public"),
+      await Promise.all([
+        fetchJoinedServers(),
+        fetchCommunities({
+          page: 1,
+          search: communitySearch,
+          append: false,
+        }),
       ]);
-
-      setServers(joinedRes.data);
-      setCommunities(publicRes.data);
 
       setCurrentSpace("SERVER");
       setActiveServer(serverId);
@@ -687,17 +750,18 @@ export default function App() {
         `/servers/${activeServer}/leave`,
       );
 
-      const [joinedRes, publicRes] = await Promise.all([
-        axiosInstance.get("/servers/joined"),
-        axiosInstance.get("/servers/public"),
+      await Promise.all([
+        fetchJoinedServers(),
+        fetchCommunities({
+          page: 1,
+          search: communitySearch,
+          append: false,
+        }),
       ]);
 
-      setServers(joinedRes.data);
-      setCommunities(publicRes.data);
-
       setCurrentSpace("HOME");
-      setActiveServer("");
-      setActiveChannel("");
+      setActiveServer(null);
+      setActiveChannel(null);
       setTextChannels([]);
       setVoiceChannels([]);
       setServerMembers([]);
@@ -847,6 +911,11 @@ export default function App() {
             communities={communities}
             getAvatarColor={getAvatarColor}
             onJoinServer={handleJoinServer}
+            communitySearch={communitySearch}
+            setCommunitySearch={setCommunitySearch}
+            onLoadMore={handleLoadMoreCommunities}
+            hasMore={communityHasMore}
+            loading={communityLoading}
           />
         );
       default:
@@ -855,10 +924,10 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a] text-gray-100 overflow-hidden serialization-context">
+    <div className="flex h-screen bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a] text-gray-100 overflow-hidden serialization-context seamless-scrollbar">
       {/* LEFT NAVIGATION COLUMN */}
-      <div className="w-[360px] min-w-[360px] max-w-[360px] flex-shrink-0 basis-[360px] flex flex-col">
-        <div className="flex flex-1 relative">
+      <div className="w-[360px] min-w-[360px] max-w-[360px] flex-shrink-0 basis-[360px] flex flex-col min-h-0">
+        <div className="flex flex-1 min-h-0 relative">
           <Sidebar
             currentSpace={currentSpace}
             onHomeClick={handleHomeClick}

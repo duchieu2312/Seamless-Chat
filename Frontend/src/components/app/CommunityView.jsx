@@ -1,18 +1,49 @@
 import { motion } from "framer-motion";
-import { useState } from "react";
+import React, { useEffect, useRef } from "react";
 import { FiSearch } from "react-icons/fi";
 import { toast } from "sonner";
 
-export default function CommunityView({
+function CommunityView({
   communities = [],
   getAvatarColor,
   onJoinServer,
+  communitySearch,
+  setCommunitySearch,
+  onLoadMore,
+  hasMore,
+  loading,
 }) {
-  const [communitySearch, setCommunitySearch] = useState("");
+  const loadMoreRef = useRef(null);
+  const hasLeftRef = useRef(true);
 
-  const filteredCommunities = communities.filter((c) =>
-    c.name.toLowerCase().includes(communitySearch.toLowerCase()),
-  );
+  useEffect(() => {
+    const target = loadMoreRef.current;
+
+    if (!target) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+
+        if (!entry.isIntersecting) {
+          hasLeftRef.current = true;
+          return;
+        }
+
+        if (entry.isIntersecting && hasLeftRef.current && hasMore && !loading) {
+          hasLeftRef.current = false;
+          onLoadMore();
+        }
+      },
+      {
+        threshold: 0.1,
+      },
+    );
+
+    observer.observe(target);
+
+    return () => observer.disconnect();
+  }, [hasMore, loading, onLoadMore]);
 
   return (
     <div className="flex-1 overflow-y-auto p-8 select-none">
@@ -38,57 +69,76 @@ export default function CommunityView({
         </div>
 
         {/* Community Discovery Cards Workspace Grid */}
-        {filteredCommunities.length === 0 ? (
+        {communities.length === 0 && !loading ? (
           <div className="text-center py-16 text-gray-500 text-sm">
             No public communities matching your search were found.
           </div>
         ) : (
-          <div className="grid md:grid-cols-2 gap-4">
-            {filteredCommunities.map((server) => (
-              <motion.div
-                key={server.name}
-                whileHover={{ scale: 1.05 }}
-                className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all flex flex-col justify-between"
-              >
-                <div>
-                  <div
-                    className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${getAvatarColor ? getAvatarColor(server.name) : "from-indigo-500 to-purple-500"} flex items-center justify-center font-bold text-white text-2xl mb-4`}
-                  >
-                    {server.name ? server.name[0].toUpperCase() : "?"}
+          <div>
+            <div className="grid md:grid-cols-2 gap-4">
+              {communities.map((server) => (
+                <motion.div
+                  key={server.id}
+                  whileHover={{ scale: 1.02 }}
+                  className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-colors flex flex-col justify-between"
+                >
+                  <div>
+                    <div
+                      className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${getAvatarColor ? getAvatarColor(server.name) : "from-indigo-500 to-purple-500"} flex items-center justify-center font-bold text-white text-2xl mb-4`}
+                    >
+                      {server.name ? server.name[0].toUpperCase() : "?"}
+                    </div>
+                    <h3 className="font-bold text-lg mb-1 text-gray-200">
+                      {server.name}
+                    </h3>
+                    <p className="text-gray-400 text-sm mb-4 h-10 leading-relaxed">
+                      {server.description || ""}
+                    </p>
                   </div>
-                  <h3 className="font-bold text-lg mb-1 text-gray-200">
-                    {server.name}
-                  </h3>
-                  <p className="text-gray-400 text-sm mb-4 h-10 leading-relaxed">
-                    {server.description || ""}
-                  </p>
-                </div>
-                <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-2">
-                  <span className="text-xs text-gray-500 font-medium">
-                    {server.members?.toLocaleString() || 0} members
-                  </span>
-                  <button
-                    className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all shadow-sm ${
-                      server.joined
-                        ? "bg-white/10 hover:bg-white/20 text-gray-300"
-                        : "bg-indigo-500 hover:bg-indigo-600 text-white"
-                    }`}
-                    onClick={() => {
-                      if (server.joined) {
-                        toast.info("You have already joined this community");
-                      } else {
-                        onJoinServer(server.id);
-                      }
-                    }}
-                  >
-                    {server.joined ? "Joined" : "Join Server"}
-                  </button>
-                </div>
-              </motion.div>
-            ))}
+                  <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-2">
+                    <span className="text-xs text-gray-500 font-medium">
+                      {server.members?.toLocaleString() || 0} members
+                    </span>
+                    <button
+                      className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors shadow-sm ${
+                        server.joined
+                          ? "bg-white/10 hover:bg-white/20 text-gray-300"
+                          : "bg-indigo-500 hover:bg-indigo-600 text-white"
+                      }`}
+                      onClick={() => {
+                        if (server.joined) {
+                          toast.info("You have already joined this community");
+                        } else {
+                          onJoinServer(server.id);
+                        }
+                      }}
+                    >
+                      {server.joined ? "Joined" : "Join Server"}
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+            <div
+              ref={loadMoreRef}
+              className="h-10 flex items-center justify-center"
+            >
+              {loading && (
+                <span className="text-xs text-gray-500">
+                  Loading more communities...
+                </span>
+              )}
+              {!hasMore && communities.length > 0 && (
+                <span className="text-xs text-gray-600">
+                  No more communities.
+                </span>
+              )}
+            </div>
           </div>
         )}
       </div>
     </div>
   );
 }
+
+export default React.memo(CommunityView);

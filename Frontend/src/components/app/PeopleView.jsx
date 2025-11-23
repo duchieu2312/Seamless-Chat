@@ -108,10 +108,7 @@ export default function PeopleView({
               >
                 {tab.label} — {tab.count}
                 {activeTab === tab.id && (
-                  <motion.div
-                    layoutId="activePeopleTab"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500"
-                  />
+                  <motion.div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500" />
                 )}
               </button>
             ))}

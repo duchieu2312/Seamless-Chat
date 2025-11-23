@@ -6,30 +6,53 @@ export async function getPublicWithJoinStatus(req, res) {
   try {
     const userId = req.user.id;
 
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limit = Math.min(Number(req.query.limit) || 10, 10);
+    const search = req.query.search?.trim() || "";
+
+    const offset = (page - 1) * limit;
+
     const result = await pool.query(
       `SELECT 
         s.id, 
         s.name, 
         s.icon_url AS "iconUrl",
         s.description,
-        (SELECT COUNT(*) FROM server_members sm WHERE sm.server_id = s.id)::INT AS "members",
+        (
+          SELECT COUNT(*) 
+          FROM server_members sm 
+          WHERE sm.server_id = s.id
+        )::INT AS "members",
         EXISTS (
           SELECT 1 
           FROM server_members sm 
-          WHERE sm.server_id = s.id AND sm.member_id = $1
+          WHERE sm.server_id = s.id 
+          AND sm.member_id = $1
         ) AS "joined"
        FROM servers s
        WHERE s.is_public = true
-       ORDER BY s.created_at DESC`,
-      [userId],
+         AND s.name ILIKE $2
+       ORDER BY s.created_at DESC
+       LIMIT $3
+       OFFSET $4`,
+      [userId, `%${search}%`, limit + 1, offset],
     );
 
-    return res.json(result.rows);
+    const hasMore = result.rows.length > limit;
+
+    const communities = result.rows.slice(0, limit);
+
+    return res.json({
+      communities,
+      page,
+      limit,
+      hasMore,
+    });
   } catch (err) {
+    console.error("Error inside getPublicWithJoinStatus controller:", err);
     return res.status(500).json({ message: err.message });
   }
 }
-
 export async function joinServer(req, res) {
   const client = await pool.connect();
 
