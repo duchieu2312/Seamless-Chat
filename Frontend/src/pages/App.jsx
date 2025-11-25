@@ -38,7 +38,9 @@ export default function App() {
   const [currentSpace, setCurrentSpace] = useState(() => {
     return localStorage.getItem("last_current_space") || "HOME";
   }); // "HOME" or "SERVER"
-  const [activeHomeTab, setActiveHomeTab] = useState("home"); // "home", "people", "community"
+  const [activeHomeTab, setActiveHomeTab] = useState(() => {
+    return localStorage.getItem("last_current_home_tab") || "home";
+  }); // "home", "people", "community"
 
   // Community States
   const [communities, setCommunities] = useState([]);
@@ -52,7 +54,12 @@ export default function App() {
   const [pendingRequests, setPendingRequests] = useState([]);
   const [blockedUsers, setBlockedUsers] = useState([]);
   const [dmMessages, setDmMessages] = useState({});
-  const [activeDM, setActiveDM] = useState(null); // Conversation ID for Direct Messages
+  const [dmHasMore, setDmHasMore] = useState({});
+  const [loadingMoreDM, setLoadingMoreDM] = useState(false);
+  const [activeDM, setActiveDM] = useState(() => {
+    const saved = localStorage.getItem("last_active_dm");
+    return saved ? Number(saved) : null;
+  }); // Conversation ID for Direct Messages
 
   // SERVER STATES
   const [serverHistory, setServerHistory] = useState({});
@@ -67,6 +74,8 @@ export default function App() {
   const [servers, setServers] = useState([]);
   const [textChannels, setTextChannels] = useState([]);
   const [channelMessages, setChannelMessages] = useState({});
+  const [channelHasMore, setChannelHasMore] = useState({});
+  const [loadingMoreChannel, setLoadingMoreChannel] = useState(false);
   const [voiceChannels, setVoiceChannels] = useState([]);
   const [serverMembers, setServerMembers] = useState([]);
 
@@ -406,10 +415,21 @@ export default function App() {
       try {
         const res = await axiosInstance.get(
           `/channels/${activeChannel}/messages`,
+          {
+            params: {
+              limit: 30,
+            },
+          },
         );
+
         setChannelMessages((prev) => ({
           ...prev,
-          [activeChannel]: res.data,
+          [activeChannel]: res.data.messages,
+        }));
+
+        setChannelHasMore((prev) => ({
+          ...prev,
+          [activeChannel]: res.data.hasMore,
         }));
       } catch (err) {
         console.error("Error fetching channel message history:", err);
@@ -460,8 +480,22 @@ export default function App() {
       try {
         const res = await axiosInstance.get(
           `/conversations/${activeDM}/messages`,
+          {
+            params: {
+              limit: 30,
+            },
+          },
         );
-        setDmMessages((prev) => ({ ...prev, [activeDM]: res.data }));
+
+        setDmMessages((prev) => ({
+          ...prev,
+          [activeDM]: res.data.messages,
+        }));
+
+        setDmHasMore((prev) => ({
+          ...prev,
+          [activeDM]: res.data.hasMore,
+        }));
       } catch (err) {
         console.error("Error fetching DM message history:", err);
       }
@@ -542,6 +576,18 @@ export default function App() {
     localStorage.setItem("last_current_space", "HOME");
   }, []);
 
+  const handleHomeTabClick = useCallback((homeTab) => {
+    setActiveHomeTab(homeTab);
+    setActiveDM(null);
+    localStorage.setItem("last_current_home_tab", homeTab);
+    localStorage.removeItem("last_active_dm");
+  }, []);
+
+  const handleDMClick = useCallback((conversationId) => {
+    setActiveDM(conversationId);
+    localStorage.setItem("last_active_dm", conversationId);
+  }, []);
+
   const handleServerClick = useCallback((serverId) => {
     setCurrentSpace("SERVER");
     setActiveServer(serverId);
@@ -579,6 +625,39 @@ export default function App() {
     });
   };
 
+  const handleLoadMoreChannelMessages = useCallback(async () => {
+    if (!activeChannel || loadingMoreChannel) return;
+    const currentMessages = channelMessages[activeChannel] || [];
+
+    if (!currentMessages.length) return;
+    const oldestMessage = currentMessages[0];
+
+    try {
+      setLoadingMoreChannel(true);
+      const res = await axiosInstance.get(
+        `/channels/${activeChannel}/messages`,
+        {
+          params: {
+            limit: 15,
+            before: oldestMessage.id,
+          },
+        },
+      );
+      setChannelMessages((prev) => ({
+        ...prev,
+        [activeChannel]: [...res.data.messages, ...(prev[activeChannel] || [])],
+      }));
+      setChannelHasMore((prev) => ({
+        ...prev,
+        [activeChannel]: res.data.hasMore,
+      }));
+    } catch (err) {
+      console.error("Error loading older channel messages:", err);
+    } finally {
+      setLoadingMoreChannel(false);
+    }
+  }, [activeChannel, channelMessages, loadingMoreChannel]);
+
   const handleSendDM = async (e, message) => {
     e.preventDefault();
     if (!message.trim() || !activeDM) return;
@@ -587,6 +666,39 @@ export default function App() {
       message: message,
     });
   };
+
+  const handleLoadMoreDMMessages = useCallback(async () => {
+    if (!activeDM || loadingMoreDM) return;
+    const currentMessages = dmMessages[activeDM] || [];
+
+    if (!currentMessages.length) return;
+    const oldestMessage = currentMessages[0];
+
+    try {
+      setLoadingMoreDM(true);
+      const res = await axiosInstance.get(
+        `/conversations/${activeDM}/messages`,
+        {
+          params: {
+            limit: 15,
+            before: oldestMessage.id,
+          },
+        },
+      );
+      setDmMessages((prev) => ({
+        ...prev,
+        [activeDM]: [...res.data.messages, ...(prev[activeDM] || [])],
+      }));
+      setDmHasMore((prev) => ({
+        ...prev,
+        [activeDM]: res.data.hasMore,
+      }));
+    } catch (err) {
+      console.error("Error loading older DM messages:", err);
+    } finally {
+      setLoadingMoreDM(false);
+    }
+  }, [activeDM, dmMessages, loadingMoreDM]);
 
   const handleJoinVoice = useCallback((channelId) => {
     toast.info(`Joining voice channel... ${channelId}`);
@@ -865,6 +977,9 @@ export default function App() {
               messages={channelMessages[activeChannel] || []}
               onSendMessage={handleSendChannelMessage}
               getAvatarColor={getAvatarColor}
+              onLoadMore={handleLoadMoreChannelMessages}
+              hasMore={channelHasMore[activeChannel] ?? false}
+              loadingMore={loadingMoreChannel}
             />
           </div>
 
@@ -885,6 +1000,9 @@ export default function App() {
           onSendMessage={handleSendDM}
           isDM={true}
           getAvatarColor={getAvatarColor}
+          onLoadMore={handleLoadMoreDMMessages}
+          hasMore={dmHasMore[activeDM] ?? false}
+          loadingMore={loadingMoreDM}
         />
       );
     }
@@ -899,7 +1017,7 @@ export default function App() {
             friends={friends}
             blockedUsers={blockedUsers}
             pendingRequests={pendingRequests}
-            onChat={(convId) => setActiveDM(convId)}
+            onChat={handleDMClick}
             onSendFriendRequest={handleSendFriendRequest}
             setConfirmModal={setConfirmModal}
             getAvatarColor={getAvatarColor}
@@ -940,19 +1058,16 @@ export default function App() {
           <ServerBar
             currentSpace={currentSpace}
             activeHomeTab={activeHomeTab}
-            setActiveHomeTab={(tab) => {
-              setActiveHomeTab(tab);
-              setActiveDM(null);
-            }}
+            onHomeTabClick={handleHomeTabClick}
             server={servers.find((s) => s.id === activeServer)}
             textChannels={filteredTextChannels}
             voiceChannels={filteredVoiceChannels}
             activeChannel={activeChannel}
-            setActiveChannel={handleChannelClick}
+            onChannelClick={handleChannelClick}
             onJoinVoice={handleJoinVoice}
             friends={friends}
             activeDM={activeDM}
-            setActiveDM={setActiveDM}
+            onDMClick={handleDMClick}
             getAvatarColor={getAvatarColor}
             onLeaveServer={handleLeaveServer}
           />

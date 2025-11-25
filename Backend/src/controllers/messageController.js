@@ -1,37 +1,45 @@
 import pool from "../config/db.js";
 import { getIO } from "../socket.js";
 
-export async function getDirectMessages(req, res) {
+export const getDirectMessages = async (req, res) => {
+  const { conversationId } = req.params;
+
+  const limit = Math.min(Number(req.query.limit) || 20, 50);
+  const before = req.query.before ? Number(req.query.before) : null;
+
   try {
-    const { conversationId } = req.params;
-    const cleanConversationId = Number(conversationId);
+    const query = `
+      SELECT
+        dm.id,
+        dm.message,
+        dm.sent_at AS time,
+        u.id AS user_id,
+        u.username,
+        u.avatar_url AS "avatarUrl"
+      FROM direct_messages dm
+      JOIN users u ON u.id = dm.sender_id
+      WHERE dm.conversation_id = $1
+      ${before ? "AND dm.id < $2" : ""}
+      ORDER BY dm.id DESC
+      LIMIT $${before ? 3 : 2}`;
 
-    if (isNaN(cleanConversationId)) {
-      return res
-        .status(400)
-        .json({ message: "Invalid conversation ID format" });
-    }
+    const params = before
+      ? [conversationId, before, limit + 1]
+      : [conversationId, limit + 1];
+    const result = await pool.query(query, params);
+    const hasMore = result.rows.length > limit;
+    // Remove the extra message used to determine whether more messages exist
+    const messages = result.rows.slice(0, limit).reverse();
 
-    const result = await pool.query(
-      `SELECT 
-         dm.id,
-         dm.conversation_id AS "conversationId",
-         u.username,
-         u.avatar_url AS "avatarUrl",
-         dm.message,
-         TO_CHAR(dm.sent_at, 'HH:MI AM') AS "time"
-       FROM direct_messages dm
-       JOIN users u ON dm.sender_id = u.id
-       WHERE dm.conversation_id = $1 
-       ORDER BY dm.sent_at ASC`,
-      [cleanConversationId],
-    );
-
-    return res.json(result.rows);
+    res.status(200).json({
+      messages,
+      hasMore,
+    });
   } catch (err) {
-    return res.status(500).json({ message: err.message });
+    console.error("Error fetching conversation messages:", err);
+    res.status(500).json({ message: "Failed to fetch conversation messages." });
   }
-}
+};
 
 export async function sendDMMessage(req, res) {
   try {
@@ -75,21 +83,21 @@ export async function sendDMMessage(req, res) {
 
     const result = await pool.query(
       `WITH inserted AS (
-      INSERT INTO direct_messages (message, conversation_id, sender_id)
-      VALUES ($1, $2, $3)
-      RETURNING id, conversation_id, sender_id, message, sent_at
-   )
-   SELECT
-      i.id,
-      i.conversation_id AS "conversationId",
-      i.sender_id AS "senderId",
-      u.username,
-      u.avatar_url AS "avatarUrl",
-      i.message,
-      TO_CHAR(i.sent_at, 'HH:MI AM') AS "time"
-   FROM inserted i
-   JOIN users u
-     ON u.id = i.sender_id`,
+        INSERT INTO direct_messages (message, conversation_id, sender_id)
+        VALUES ($1, $2, $3)
+        RETURNING id, conversation_id, sender_id, message, sent_at
+       )
+       SELECT
+         i.id,
+         i.conversation_id AS "conversationId",
+         i.sender_id AS "senderId",
+         u.username,
+         u.avatar_url AS "avatarUrl",
+         i.message,
+         i.sent_at AS "time"
+       FROM inserted i
+       JOIN users u
+       ON u.id = i.sender_id`,
       [cleanMessage, cleanConversationId, userId],
     );
 
@@ -150,35 +158,45 @@ export async function updateDmLastSeen(req, res) {
   }
 }
 
-export async function getChannelMessages(req, res) {
+export const getChannelMessages = async (req, res) => {
+  const { channelId } = req.params;
+
+  const limit = Math.min(Number(req.query.limit) || 20, 50);
+  const before = req.query.before ? Number(req.query.before) : null;
+
   try {
-    const { channelId } = req.params;
-    const cleanChannelId = Number(channelId);
-
-    if (isNaN(cleanChannelId)) {
-      return res.status(400).json({ message: "Invalid channel ID format" });
-    }
-
-    const result = await pool.query(
-      `SELECT 
-        cm.id,
-        cm.channel_id AS "channelId",
+    const query = `
+      SELECT
+        m.id,
+        m.message,
+        m.sent_at AS time,
+        u.id AS user_id,
         u.username,
-        u.avatar_url AS "avatarUrl",
-        cm.message,
-        TO_CHAR(cm.sent_at, 'HH:MI AM') AS "time"
-       FROM channel_messages cm
-       JOIN users u ON cm.sender_id = u.id
-       WHERE cm.channel_id = $1 
-       ORDER BY cm.sent_at ASC`,
-      [cleanChannelId],
-    );
+        u.avatar_url AS "avatarUrl"
+      FROM channel_messages m
+      JOIN users u ON u.id = m.sender_id
+      WHERE m.channel_id = $1
+      ${before ? "AND m.id < $2" : ""}
+      ORDER BY m.id DESC
+      LIMIT $${before ? 3 : 2}`;
 
-    return res.json(result.rows);
+    const params = before
+      ? [channelId, before, limit + 1]
+      : [channelId, limit + 1];
+    const result = await pool.query(query, params);
+    const hasMore = result.rows.length > limit;
+    // Remove the extra message used to determine whether more messages exist
+    const messages = result.rows.slice(0, limit).reverse();
+
+    res.status(200).json({
+      messages,
+      hasMore,
+    });
   } catch (err) {
-    return res.status(500).json({ message: err.message });
+    console.error("Error fetching channel messages:", err);
+    res.status(500).json({ message: "Failed to fetch channel messages." });
   }
-}
+};
 
 export async function sendChannelMessage(req, res) {
   try {
@@ -221,18 +239,18 @@ export async function sendChannelMessage(req, res) {
           INSERT INTO channel_messages (message, channel_id, sender_id)
           VALUES ($1, $2, $3)
           RETURNING id, channel_id, sender_id, message, sent_at
-      )
-      SELECT
-          i.id,
-          i.channel_id AS "channelId",
-          i.sender_id AS "senderId",
-          u.username,
-          u.avatar_url AS "avatarUrl",
-          i.message,
-          TO_CHAR(i.sent_at, 'HH:MI AM') AS "time"
-      FROM inserted i
-      JOIN users u
-        ON u.id = i.sender_id`,
+       )
+       SELECT
+           i.id,
+           i.channel_id AS "channelId",
+           i.sender_id AS "senderId",
+           u.username,
+           u.avatar_url AS "avatarUrl",
+           i.message,
+           i.sent_at AS "time"
+       FROM inserted i
+       JOIN users u
+       ON u.id = i.sender_id`,
       [cleanMessage, cleanChannelId, userId],
     );
 

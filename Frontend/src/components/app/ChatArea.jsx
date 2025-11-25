@@ -1,29 +1,21 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState } from "react";
 import ChatHeader from "./ChatArea/ChatHeader";
-import MessageList from "./ChatArea//MessageList";
-import MessageInput from "./ChatArea//MessageInput";
+import MessageList from "./ChatArea/MessageList";
+import MessageInput from "./ChatArea/MessageInput";
 
 function ChatArea(props) {
-  const { channel, messages, onSendMessage, isDM, getAvatarColor } = props;
+  const {
+    channel,
+    messages,
+    onSendMessage,
+    isDM,
+    getAvatarColor,
+    onLoadMore,
+    hasMore,
+    loadingMore,
+  } = props;
 
   const [message, setMessage] = useState("");
-
-  const messagesEndRef = useRef(null);
-  const isFirstLoad = useRef(true);
-
-  useEffect(() => {
-    isFirstLoad.current = true;
-  }, [channel?.id]);
-
-  useEffect(() => {
-    if (!messages.length) return;
-
-    messagesEndRef.current?.scrollIntoView({
-      behavior: isFirstLoad.current ? "auto" : "smooth",
-    });
-
-    isFirstLoad.current = false;
-  }, [messages]);
 
   return (
     <div className="flex flex-col flex-1 min-w-0 h-full">
@@ -38,7 +30,9 @@ function ChatArea(props) {
         isDM={isDM}
         channel={channel}
         getAvatarColor={getAvatarColor}
-        messagesEndRef={messagesEndRef}
+        onLoadMore={onLoadMore}
+        hasMore={hasMore}
+        loadingMore={loadingMore}
       />
 
       <MessageInput

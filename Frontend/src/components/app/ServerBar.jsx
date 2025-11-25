@@ -19,16 +19,16 @@ const homeItems = [
 function ServerBar({
   currentSpace,
   activeHomeTab,
-  setActiveHomeTab,
+  onHomeTabClick,
   server,
   textChannels,
   voiceChannels,
   activeChannel,
-  setActiveChannel,
+  onChannelClick,
   onJoinVoice,
   friends,
   activeDM,
-  setActiveDM,
+  onDMClick,
   getAvatarColor,
   onLeaveServer,
 }) {
@@ -78,7 +78,7 @@ function ServerBar({
               <motion.button
                 key={channel.id}
                 whileHover={{ x: 4 }}
-                onClick={() => setActiveChannel(channel.id)}
+                onClick={() => onChannelClick(channel.id)}
                 className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-gray-400 hover:bg-white/5 transition-all group
                   ${activeChannel === channel.id ? "bg-white/10 text-white" : ""}`}
               >
@@ -154,10 +154,7 @@ function ServerBar({
                   <motion.button
                     key={item.id}
                     whileHover={{ x: 4 }}
-                    onClick={() => {
-                      setActiveHomeTab(item.id);
-                      setActiveDM(null);
-                    }}
+                    onClick={() => onHomeTabClick(item.id)}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all
                       ${isActive ? "bg-white/10 text-white" : "text-gray-400 hover:bg-white/5 hover:text-gray-200"}`}
                   >
@@ -180,7 +177,7 @@ function ServerBar({
                     <motion.button
                       key={friend.id}
                       whileHover={{ x: 4 }}
-                      onClick={() => setActiveDM(friend.conversationId)}
+                      onClick={() => onDMClick(friend.conversationId)}
                       className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all group
                         ${isActive ? "bg-white/10 text-white" : "text-gray-400 hover:bg-white/5 hover:text-gray-200"}`}
                     >
