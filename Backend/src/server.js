@@ -15,6 +15,7 @@ import {
 } from "./controllers/authController.js";
 import {
   getUserInfo,
+  getConversations,
   getFriends,
   getPendingRequests,
   getBlockedUsers,
@@ -26,7 +27,7 @@ import {
   unfriend,
 } from "./controllers/userController.js";
 import {
-  getPublicWithJoinStatus,
+  getCommunities,
   joinServer,
   leaveServer,
   getJoinedServers,
@@ -67,6 +68,7 @@ app.post("/api/auth/logout", logoutUser);
 app.post("/api/auth/refresh", refreshLimiter, refreshToken);
 
 // USER ROUTES
+app.get("/api/users/conversations", authenticateToken, getConversations);
 app.get("/api/users/me", authenticateToken, getUserInfo);
 app.get("/api/users/friends", authenticateToken, getFriends);
 app.get("/api/users/friends/pending", authenticateToken, getPendingRequests);
@@ -95,7 +97,7 @@ app.delete(
 );
 
 // SERVER ROUTES
-app.get("/api/servers/public", authenticateToken, getPublicWithJoinStatus);
+app.get("/api/servers/public", authenticateToken, getCommunities);
 app.post("/api/servers/:serverId/join", authenticateToken, joinServer);
 app.delete("/api/servers/:serverId/leave", authenticateToken, leaveServer);
 app.get("/api/servers/joined", authenticateToken, getJoinedServers);

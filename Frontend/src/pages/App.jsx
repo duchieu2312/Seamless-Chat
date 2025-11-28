@@ -31,7 +31,13 @@ const getAvatarColor = (username) => {
 export default function App() {
   const { user } = useAuth();
   const socketRef = useRef(null);
+  useEffect(() => {
+    console.log("App MOUNT");
 
+    return () => {
+      console.log("App UNMOUNT");
+    };
+  }, []);
   // ==========================================
   // CORE STATES
   // ==========================================
@@ -49,10 +55,41 @@ export default function App() {
   const [communityLoading, setCommunityLoading] = useState(false);
   const [communitySearch, setCommunitySearch] = useState("");
 
-  // FRIENDS / DIRECT MESSAGE STATES
+  // People States
   const [friends, setFriends] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
   const [blockedUsers, setBlockedUsers] = useState([]);
+  const [peoplePage, setPeoplePage] = useState({
+    friends: 1,
+    pending: 1,
+    blocked: 1,
+  });
+  const [peopleHasMore, setPeopleHasMore] = useState({
+    friends: true,
+    pending: true,
+    blocked: true,
+  });
+  const [peopleLoading, setPeopleLoading] = useState({
+    friends: false,
+    pending: false,
+    blocked: false,
+  });
+  const [peopleSearch, setPeopleSearch] = useState({
+    friends: "",
+    pending: "",
+    blocked: "",
+  });
+  const [peopleTotal, setPeopleTotal] = useState({
+    friends: 0,
+    pending: 0,
+    blocked: 0,
+  });
+
+  // Direct Message States
+  const [conversations, setConversations] = useState([]);
+  const [conversationsPage, setConversationsPage] = useState(1);
+  const [conversationsHasMore, setConversationsHasMore] = useState(true);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
   const [dmMessages, setDmMessages] = useState({});
   const [dmHasMore, setDmHasMore] = useState({});
   const [loadingMoreDM, setLoadingMoreDM] = useState(false);
@@ -61,7 +98,7 @@ export default function App() {
     return saved ? Number(saved) : null;
   }); // Conversation ID for Direct Messages
 
-  // SERVER STATES
+  // Servers / Channels States
   const [serverHistory, setServerHistory] = useState({});
   const [activeServer, setActiveServer] = useState(() => {
     const saved = localStorage.getItem("last_active_server");
@@ -79,13 +116,19 @@ export default function App() {
   const [voiceChannels, setVoiceChannels] = useState([]);
   const [serverMembers, setServerMembers] = useState([]);
 
-  // INPUT STATES
+  // Input states
   const [isCreateServerOpen, setIsCreateServerOpen] = useState(false);
   const [confirmModal, setConfirmModal] = useState({
     open: false,
     type: "",
     friend: null,
   });
+
+  // Synchronize dynamic people search reference for Socket listeners securely
+  const peopleSearchRef = useRef(peopleSearch);
+  useEffect(() => {
+    peopleSearchRef.current = peopleSearch;
+  }, [peopleSearch]);
 
   // Synchronize dynamic server reference for Socket listeners securely
   const activeServerRef = useRef(activeServer);
@@ -108,6 +151,114 @@ export default function App() {
   // ==========================================
   // DATA FETCHING & WEBSOCKETS
   // ==========================================
+
+  const fetchJoinedServers = useCallback(async () => {
+    try {
+      const res = await axiosInstance.get("/servers/joined");
+      setServers(res.data);
+
+      // Auto-select the first server if no historical active server is stored
+      if (res.data.length > 0 && !localStorage.getItem("last_active_server")) {
+        const defaultServerId = res.data[0].id;
+        setActiveServer(defaultServerId);
+        localStorage.setItem("last_active_server", defaultServerId);
+      }
+    } catch (err) {
+      console.error("Failed to fetch joined servers:", err);
+    }
+  }, []);
+
+  const fetchPeople = useCallback(
+    async (type, page = 1, search = "", append = false) => {
+      const config = {
+        friends: {
+          endpoint: "/users/friends",
+          setData: setFriends,
+          responseKey: "friends",
+        },
+        pending: {
+          endpoint: "/users/friends/pending",
+          setData: setPendingRequests,
+          responseKey: "pendingRequests",
+        },
+        blocked: {
+          endpoint: "/users/friends/blocked",
+          setData: setBlockedUsers,
+          responseKey: "blockedUsers",
+        },
+      };
+      const current = config[type];
+      if (!current) return;
+      try {
+        setPeopleLoading((prev) => ({
+          ...prev,
+          [type]: true,
+        }));
+        const res = await axiosInstance.get(current.endpoint, {
+          params: {
+            page,
+            limit: 20,
+            search,
+          },
+        });
+        const newItems = res.data[current.responseKey] || [];
+        current.setData((prev) => (append ? [...prev, ...newItems] : newItems));
+        setPeoplePage((prev) => ({
+          ...prev,
+          [type]: page,
+        }));
+        setPeopleHasMore((prev) => ({
+          ...prev,
+          [type]: res.data.hasMore,
+        }));
+        setPeopleTotal((prev) => ({
+          ...prev,
+          [type]: res.data.total,
+        }));
+      } catch (err) {
+        console.error(`Error fetching ${type}:`, err);
+      } finally {
+        setPeopleLoading((prev) => ({
+          ...prev,
+          [type]: false,
+        }));
+      }
+    },
+    [],
+  );
+
+  const fetchConversations = useCallback(
+    async ({ page = 1, append = false } = {}) => {
+      try {
+        setConversationsLoading(true);
+
+        const response = await axiosInstance.get("/users/conversations", {
+          params: {
+            page,
+            limit: 20,
+          },
+        });
+
+        const { conversations: newConversations, hasMore } = response.data;
+
+        setConversations((prev) =>
+          append ? [...prev, ...newConversations] : newConversations,
+        );
+
+        setConversationsPage(page);
+        setConversationsHasMore(hasMore);
+      } catch (err) {
+        console.error("Error fetching conversations:", err);
+
+        toast.error(
+          err.response?.data?.message || "Failed to load conversations",
+        );
+      } finally {
+        setConversationsLoading(false);
+      }
+    },
+    [],
+  );
 
   const fetchCommunities = useCallback(
     async ({ page = 1, search = "", append = false } = {}) => {
@@ -143,49 +294,6 @@ export default function App() {
     [],
   );
 
-  const fetchJoinedServers = useCallback(async () => {
-    try {
-      const res = await axiosInstance.get("/servers/joined");
-      setServers(res.data);
-
-      // Auto-select the first server if no historical active server is stored
-      if (res.data.length > 0 && !localStorage.getItem("last_active_server")) {
-        const defaultServerId = res.data[0].id;
-        setActiveServer(defaultServerId);
-        localStorage.setItem("last_active_server", defaultServerId);
-      }
-    } catch (err) {
-      console.error("Failed to fetch joined servers:", err);
-    }
-  }, []);
-
-  const fetchFriends = useCallback(async () => {
-    try {
-      const res = await axiosInstance.get("/users/friends");
-      setFriends(res.data);
-    } catch (err) {
-      console.error("Failed to fetch friends:", err);
-    }
-  }, []);
-
-  const fetchPendingRequests = useCallback(async () => {
-    try {
-      const res = await axiosInstance.get("/users/friends/pending");
-      setPendingRequests(res.data);
-    } catch (err) {
-      console.error("Failed to fetch pending requests:", err);
-    }
-  }, []);
-
-  const fetchBlockedUsers = useCallback(async () => {
-    try {
-      const res = await axiosInstance.get("/users/friends/blocked");
-      setBlockedUsers(res.data);
-    } catch (err) {
-      console.error("Failed to fetch blocked users:", err);
-    }
-  }, []);
-
   const fetchServerMembers = useCallback(async (serverId) => {
     try {
       const res = await axiosInstance.get(`/servers/${serverId}/members`);
@@ -200,20 +308,18 @@ export default function App() {
     if (!user) return;
     Promise.all([
       fetchJoinedServers(),
-      fetchFriends(),
-      fetchPendingRequests(),
-      fetchBlockedUsers(),
+      fetchConversations({
+        page: 1,
+        append: false,
+      }),
+      fetchPeople("friends"),
+      fetchPeople("pending"),
+      fetchPeople("blocked"),
     ]).catch((err) => {
       console.error(err);
       toast.error("Failed to load application data.");
     });
-  }, [
-    user,
-    fetchJoinedServers,
-    fetchFriends,
-    fetchPendingRequests,
-    fetchBlockedUsers,
-  ]);
+  }, [user, fetchJoinedServers, fetchConversations, fetchPeople]);
 
   // Initialize Socket.io connection and establish global event listeners
   useEffect(() => {
@@ -290,11 +396,17 @@ export default function App() {
       );
     });
 
-    socketRef.current.on("friends_updated", fetchFriends);
+    socketRef.current.on("friends_updated", () => {
+      fetchPeople("friends", 1, peopleSearchRef.friends, false);
+    });
 
-    socketRef.current.on("pending_updated", fetchPendingRequests);
+    socketRef.current.on("pending_updated", () => {
+      fetchPeople("pending", 1, peopleSearchRef.pending, false);
+    });
 
-    socketRef.current.on("blocked_updated", fetchBlockedUsers);
+    socketRef.current.on("blocked_updated", () => {
+      fetchPeople("blocked", 1, peopleSearchRef.blocked, false);
+    });
 
     socketRef.current.on("servers_updated", () => {
       fetchCommunities({
@@ -318,11 +430,10 @@ export default function App() {
     };
   }, [
     user,
+    peopleSearchRef,
     fetchCommunities,
     fetchJoinedServers,
-    fetchFriends,
-    fetchPendingRequests,
-    fetchBlockedUsers,
+    fetchPeople,
     fetchServerMembers,
   ]);
 
@@ -556,21 +667,8 @@ export default function App() {
   // ==========================================
   // ACTION EVENT HANDLERS
   // ==========================================
-  const handleLogout = async () => {
-    try {
-      await axiosInstance.post("/auth/logout");
-    } catch (err) {
-      toast.error(`Logout failed: ${err}`);
-    } finally {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
-      localStorage.clear();
-      window.location.href = "/";
-    }
-  };
 
+  //User Action Events
   const handleHomeClick = useCallback(() => {
     setCurrentSpace("HOME");
     localStorage.setItem("last_current_space", "HOME");
@@ -616,6 +714,26 @@ export default function App() {
     [activeServer],
   );
 
+  const handleLogout = async () => {
+    try {
+      await axiosInstance.post("/auth/logout");
+    } catch (err) {
+      toast.error(`Logout failed: ${err}`);
+    } finally {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      localStorage.clear();
+      window.location.href = "/";
+    }
+  };
+
+  const handleJoinVoice = useCallback((channelId) => {
+    toast.info(`Joining voice channel... ${channelId}`);
+  }, []);
+
+  // Messages Action Events
   const handleSendChannelMessage = async (e, message) => {
     e.preventDefault();
     if (!message.trim() || !activeChannel) return;
@@ -700,9 +818,54 @@ export default function App() {
     }
   }, [activeDM, dmMessages, loadingMoreDM]);
 
-  const handleJoinVoice = useCallback((channelId) => {
-    toast.info(`Joining voice channel... ${channelId}`);
-  }, []);
+  // People Action Events
+  const handleLoadMoreConversations = useCallback(() => {
+    if (conversationsLoading || !conversationsHasMore) return;
+
+    fetchConversations({
+      page: conversationsPage + 1,
+      append: true,
+    });
+  }, [
+    conversationsLoading,
+    conversationsHasMore,
+    conversationsPage,
+    fetchConversations,
+  ]);
+
+  const handleLoadMorePeople = useCallback(
+    (type) => {
+      if (peopleLoading[type] || !peopleHasMore[type]) return;
+
+      const nextPage = peoplePage[type] + 1;
+
+      fetchPeople(type, nextPage, peopleSearch[type], true);
+    },
+    [peopleLoading, peopleHasMore, peoplePage, peopleSearch, fetchPeople],
+  );
+
+  const handlePeopleSearch = useCallback(
+    (type, search) => {
+      setPeopleSearch((prev) => ({
+        ...prev,
+        [type]: search,
+      }));
+
+      setPeopleHasMore((prev) => ({
+        ...prev,
+        [type]: true,
+      }));
+
+      // RESET pagination
+      setPeoplePage((prev) => ({
+        ...prev,
+        [type]: 1,
+      }));
+
+      fetchPeople(type, 1, search, false);
+    },
+    [fetchPeople],
+  );
 
   const handleSendFriendRequest = async (targetUser) => {
     try {
@@ -813,6 +976,7 @@ export default function App() {
     }
   };
 
+  // Server Action Events
   const handleLoadMoreCommunities = useCallback(() => {
     if (communityLoading || !communityHasMore) return;
 
@@ -1021,6 +1185,11 @@ export default function App() {
             onSendFriendRequest={handleSendFriendRequest}
             setConfirmModal={setConfirmModal}
             getAvatarColor={getAvatarColor}
+            onLoadMore={handleLoadMorePeople}
+            onSearch={handlePeopleSearch}
+            hasMore={peopleHasMore}
+            loading={peopleLoading}
+            total={peopleTotal}
           />
         );
       case "community":
@@ -1065,7 +1234,10 @@ export default function App() {
             activeChannel={activeChannel}
             onChannelClick={handleChannelClick}
             onJoinVoice={handleJoinVoice}
-            friends={friends}
+            conversations={conversations}
+            onLoadMore={handleLoadMoreConversations}
+            hasMore={conversationsHasMore}
+            loading={conversationsLoading}
             activeDM={activeDM}
             onDMClick={handleDMClick}
             getAvatarColor={getAvatarColor}

@@ -2,7 +2,7 @@ import pool from "../config/db.js";
 import { getIO } from "../socket.js";
 import crypto from "crypto";
 
-export async function getPublicWithJoinStatus(req, res) {
+export async function getCommunities(req, res) {
   try {
     const userId = req.user.id;
 
@@ -39,7 +39,6 @@ export async function getPublicWithJoinStatus(req, res) {
     );
 
     const hasMore = result.rows.length > limit;
-
     const communities = result.rows.slice(0, limit);
 
     return res.json({
@@ -49,10 +48,11 @@ export async function getPublicWithJoinStatus(req, res) {
       hasMore,
     });
   } catch (err) {
-    console.error("Error inside getPublicWithJoinStatus controller:", err);
+    console.error("Error inside getCommunities controller:", err);
     return res.status(500).json({ message: err.message });
   }
 }
+
 export async function joinServer(req, res) {
   const client = await pool.connect();
 
@@ -182,7 +182,7 @@ export async function getJoinedServers(req, res) {
        FROM servers s
        INNER JOIN server_members sm ON s.id = sm.server_id
        WHERE sm.member_id = $1
-       ORDER BY s.created_at ASC`,
+       ORDER BY s.name ASC`,
       [userId],
     );
 

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   FiHash,
   FiSettings,
@@ -26,13 +26,48 @@ function ServerBar({
   activeChannel,
   onChannelClick,
   onJoinVoice,
-  friends,
+  conversations,
+  onLoadMore,
+  hasMore,
+  loading,
   activeDM,
   onDMClick,
   getAvatarColor,
   onLeaveServer,
 }) {
   const [showMenu, setShowMenu] = useState(false);
+
+  const loadMoreRef = useRef(null);
+  const hasLeftRef = useRef(true);
+
+  useEffect(() => {
+    const target = loadMoreRef.current;
+
+    if (!target) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+
+        if (!entry.isIntersecting) {
+          hasLeftRef.current = true;
+          return;
+        }
+
+        if (entry.isIntersecting && hasLeftRef.current && hasMore && !loading) {
+          hasLeftRef.current = false;
+          onLoadMore();
+        }
+      },
+      {
+        threshold: 0.1,
+      },
+    );
+
+    observer.observe(target);
+
+    return () => observer.disconnect();
+  }, [hasMore, loading, onLoadMore]);
 
   return (
     <div className="w-[280px] min-w-[280px] max-w-[280px] basis-[280px] flex-shrink-0 bg-black/20 backdrop-blur-xl border-r border-white/5 flex flex-col relative z-30">
@@ -171,46 +206,79 @@ function ServerBar({
                 Direct Messages
               </div>
               <div className="space-y-0.5">
-                {friends.map((friend) => {
-                  const isActive = activeDM === friend.conversationId;
+                {conversations.map((conversation) => {
+                  const isActive = activeDM === conversation.id;
+
                   return (
                     <motion.button
-                      key={friend.id}
+                      key={conversation.id}
                       whileHover={{ x: 4 }}
-                      onClick={() => onDMClick(friend.conversationId)}
+                      onClick={() => onDMClick(conversation.id)}
                       className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all group
-                        ${isActive ? "bg-white/10 text-white" : "text-gray-400 hover:bg-white/5 hover:text-gray-200"}`}
+                        ${
+                          isActive
+                            ? "bg-white/10 text-white"
+                            : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
+                        }
+                      `}
                     >
                       <div className="relative flex-shrink-0">
-                        {friend.avatarUrl ? (
+                        {conversation.avatarUrl ? (
                           <img
-                            src={friend.avatarUrl}
-                            alt={friend.username}
+                            src={conversation.avatarUrl}
+                            alt={conversation.username}
                             className="w-10 h-10 rounded-full object-cover"
                           />
                         ) : (
                           <div
-                            className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarColor(friend.username)} flex items-center justify-center font-bold text-white text-sm select-none`}
+                            className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarColor(
+                              conversation.username,
+                            )} flex items-center justify-center font-bold text-white text-sm select-none`}
                           >
-                            {friend.username?.charAt(0).toUpperCase() || "?"}
+                            {conversation.username?.charAt(0).toUpperCase() ||
+                              "?"}
                           </div>
                         )}
                         <div
                           className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#1e293b]
-                          ${friend.status === "online" ? "bg-green-500" : friend.status === "idle" ? "bg-yellow-500" : "bg-gray-500"}`}
+                            ${
+                              conversation.status === "online"
+                                ? "bg-green-500"
+                                : conversation.status === "idle"
+                                  ? "bg-yellow-500"
+                                  : "bg-gray-500"
+                            }
+                          `}
                         />
                       </div>
                       <span className="text-sm font-medium flex-1 text-left truncate">
-                        {friend.username}
+                        {conversation.username}
                       </span>
-                      {friend.unread > 0 && (
+                      {conversation.unread > 0 && (
                         <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0">
-                          {friend.unread > 99 ? "99+" : friend.unread}
+                          {conversation.unread > 99
+                            ? "99+"
+                            : conversation.unread}
                         </span>
                       )}
                     </motion.button>
                   );
                 })}
+              </div>
+              <div
+                ref={loadMoreRef}
+                className="h-10 flex items-center justify-center"
+              >
+                {loading && (
+                  <span className="text-xs text-gray-500">
+                    Loading more conversations...
+                  </span>
+                )}
+                {!hasMore && conversations.length > 0 && (
+                  <span className="text-xs text-gray-600">
+                    No more conversations.
+                  </span>
+                )}
               </div>
             </div>
           </div>

@@ -26,17 +26,22 @@ export async function getUserInfo(req, res) {
   }
 }
 
-export async function getFriends(req, res) {
+export async function getConversations(req, res) {
   try {
     const userId = req.user.id;
 
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limit = Math.min(Number(req.query.limit) || 20, 20);
+
+    const offset = (page - 1) * limit;
+
     const result = await pool.query(
       `SELECT
-        u.id,
+        c.id,
+        u.id AS "userId",
         u.username,
         u.avatar_url AS "avatarUrl",
         u.status,
-        c.id AS "conversationId",
         (
           SELECT COUNT(*)::INT
           FROM direct_messages dm
@@ -45,10 +50,66 @@ export async function getFriends(req, res) {
             AND dm.sent_at >
               CASE
                 WHEN c.user_one_id = $1
-                  THEN c.user_one_last_read
+                THEN c.user_one_last_read
                 ELSE c.user_two_last_read
               END
         ) AS "unread"
+      FROM conversations c
+      JOIN users u
+        ON u.id = CASE
+          WHEN c.user_one_id = $1
+          THEN c.user_two_id
+          ELSE c.user_one_id
+        END
+      AND EXISTS (
+        SELECT 1
+        FROM friendships f
+        WHERE (
+          (f.user_id = $1 AND f.friend_id = u.id)
+          OR
+          (f.user_id = u.id AND f.friend_id = $1)
+        )
+        AND f.status = 'accepted'
+      )
+      ORDER BY c.last_message_at ASC NULLS LAST
+      LIMIT $2
+      OFFSET $3`,
+      [userId, limit + 1, offset],
+    );
+
+    const hasMore = result.rows.length > limit;
+    const conversations = result.rows.slice(0, limit);
+
+    return res.json({
+      conversations,
+      page,
+      limit,
+      hasMore,
+    });
+  } catch (err) {
+    console.error("Error inside getConversations controller:", err);
+    return res.status(500).json({ message: err.message });
+  }
+}
+
+export async function getFriends(req, res) {
+  try {
+    const userId = req.user.id;
+
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limit = Math.min(Number(req.query.limit) || 20, 20);
+    const search = req.query.search?.trim() || "";
+
+    const offset = (page - 1) * limit;
+
+    const result = await pool.query(
+      `SELECT
+        u.id,
+        u.username,
+        u.avatar_url AS "avatarUrl",
+        u.status,
+        c.id AS "conversationId",
+        COUNT(*) OVER() AS "total"
       FROM friendships f
       JOIN users u
         ON f.friend_id = u.id
@@ -59,33 +120,75 @@ export async function getFriends(req, res) {
           (c.user_one_id = f.friend_id AND c.user_two_id = $1)
         )
       WHERE f.user_id = $1
-        AND f.status = 'accepted'`,
-      [userId],
+        AND f.status = 'accepted'
+        AND u.username ILIKE $2
+      ORDER BY u.username
+      LIMIT $3
+      OFFSET $4`,
+      [userId, `%${search}%`, limit + 1, offset],
     );
 
-    return res.json(result.rows);
+    const hasMore = result.rows.length > limit;
+    const friends = result.rows
+      .slice(0, limit)
+      .map(({ total, ...friend }) => friend);
+    const total = result.rows[0]?.total ?? 0;
+
+    return res.json({
+      friends,
+      page,
+      limit,
+      hasMore,
+      total,
+    });
   } catch (err) {
+    console.error("Error inside getFriends controller:", err);
     return res.status(500).json({ message: err.message });
   }
 }
+
 export async function getPendingRequests(req, res) {
   try {
     const userId = req.user.id;
+
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limit = Math.min(Number(req.query.limit) || 20, 20);
+    const search = req.query.search?.trim() || "";
+
+    const offset = (page - 1) * limit;
 
     const result = await pool.query(
       `SELECT 
         u.id, 
         u.username, 
-        u.avatar_url AS "avatarUrl"
+        u.avatar_url AS "avatarUrl",
+        COUNT(*) OVER() AS "total"
        FROM friendships f
        JOIN users u ON f.user_id = u.id
-       WHERE f.friend_id = $1 AND f.status = 'pending'
-       ORDER BY f.updated_at DESC`,
-      [userId],
+       WHERE f.friend_id = $1
+         AND f.status = 'pending'
+         AND u.username ILIKE $2
+       ORDER BY f.updated_at DESC
+       LIMIT $3
+       OFFSET $4`,
+      [userId, `%${search}%`, limit + 1, offset],
     );
 
-    return res.json(result.rows);
+    const hasMore = result.rows.length > limit;
+    const pendingRequests = result.rows
+      .slice(0, limit)
+      .map(({ total, ...pendingRequest }) => pendingRequest);
+    const total = result.rows[0]?.total ?? 0;
+
+    return res.json({
+      pendingRequests,
+      page,
+      limit,
+      hasMore,
+      total,
+    });
   } catch (err) {
+    console.error("Error inside getPendingRequests controller:", err);
     return res.status(500).json({ message: err.message });
   }
 }
@@ -94,21 +197,45 @@ export async function getBlockedUsers(req, res) {
   try {
     const userId = req.user.id;
 
+    const page = Math.max(Number(req.query.page) || 1, 1);
+    const limit = Math.min(Number(req.query.limit) || 20, 20);
+    const search = req.query.search?.trim() || "";
+
+    const offset = (page - 1) * limit;
+
     const result = await pool.query(
       `SELECT 
         u.id, 
         u.username, 
         u.avatar_url AS "avatarUrl",
-        f.updated_at AS "updatedAt"
+        f.updated_at AS "updatedAt",
+        COUNT(*) OVER() AS "total"
        FROM friendships f
        JOIN users u ON f.friend_id = u.id
-       WHERE f.user_id = $1 AND f.status = 'blocked'
-       ORDER BY f.updated_at DESC`,
-      [userId],
+       WHERE f.user_id = $1 
+         AND f.status = 'blocked'
+         AND u.username ILIKE $2
+       ORDER BY f.updated_at DESC
+       LIMIT $3
+       OFFSET $4`,
+      [userId, `%${search}%`, limit + 1, offset],
     );
 
-    return res.json(result.rows);
+    const hasMore = result.rows.length > limit;
+    const blockedUsers = result.rows
+      .slice(0, limit)
+      .map(({ total, ...blockedUser }) => blockedUser);
+    const total = result.rows[0]?.total ?? 0;
+
+    return res.json({
+      blockedUsers,
+      page,
+      limit,
+      hasMore,
+      total,
+    });
   } catch (err) {
+    console.error("Error inside getBlockedUsers controller:", err);
     return res.status(500).json({ message: err.message });
   }
 }
@@ -192,6 +319,16 @@ export async function sendFriendRequest(req, res) {
           [senderId, targetId],
         );
 
+        const [userOne, userTwo] = [senderId, targetId].sort();
+
+        await client.query(
+          `INSERT INTO conversations (user_one_id, user_two_id)
+           VALUES ($1, $2)
+           ON CONFLICT (user_one_id, user_two_id)
+           DO NOTHING`,
+          [userOne, userTwo],
+        );
+
         await client.query("COMMIT");
 
         return res.json({ message: "Friend request accepted." });
@@ -241,8 +378,8 @@ export async function acceptFriendRequest(req, res) {
     }
 
     await client.query(
-      `INSERT INTO friendships (user_id, friend_id, status, updated_at) 
-       VALUES ($1, $2, 'accepted', CURRENT_TIMESTAMP)
+      `INSERT INTO friendships (user_id, friend_id, status) 
+       VALUES ($1, $2, 'accepted')
        ON CONFLICT (user_id, friend_id) 
        DO UPDATE SET status = 'accepted', updated_at = CURRENT_TIMESTAMP`,
       [userId, senderId],

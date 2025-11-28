@@ -4,7 +4,7 @@ import { getIO } from "../socket.js";
 export const getDirectMessages = async (req, res) => {
   const { conversationId } = req.params;
 
-  const limit = Math.min(Number(req.query.limit) || 20, 50);
+  const limit = Math.min(Number(req.query.limit) || 20, 30);
   const before = req.query.before ? Number(req.query.before) : null;
 
   try {
@@ -20,7 +20,7 @@ export const getDirectMessages = async (req, res) => {
       JOIN users u ON u.id = dm.sender_id
       WHERE dm.conversation_id = $1
       ${before ? "AND dm.id < $2" : ""}
-      ORDER BY dm.id DESC
+      ORDER BY dm.sent_at DESC
       LIMIT $${before ? 3 : 2}`;
 
     const params = before
@@ -28,7 +28,6 @@ export const getDirectMessages = async (req, res) => {
       : [conversationId, limit + 1];
     const result = await pool.query(query, params);
     const hasMore = result.rows.length > limit;
-    // Remove the extra message used to determine whether more messages exist
     const messages = result.rows.slice(0, limit).reverse();
 
     res.status(200).json({
@@ -81,44 +80,62 @@ export async function sendDMMessage(req, res) {
 
     const receiverId = permission.rows[0].receiverId;
 
-    const result = await pool.query(
-      `WITH inserted AS (
-        INSERT INTO direct_messages (message, conversation_id, sender_id)
-        VALUES ($1, $2, $3)
-        RETURNING id, conversation_id, sender_id, message, sent_at
-       )
-       SELECT
-         i.id,
-         i.conversation_id AS "conversationId",
-         i.sender_id AS "senderId",
-         u.username,
-         u.avatar_url AS "avatarUrl",
-         i.message,
-         i.sent_at AS "time"
-       FROM inserted i
-       JOIN users u
-       ON u.id = i.sender_id`,
-      [cleanMessage, cleanConversationId, userId],
-    );
+    const client = await pool.connect();
 
-    const newMessage = result.rows[0];
+    try {
+      await client.query("BEGIN");
+      const result = await client.query(
+        `WITH inserted AS (
+          INSERT INTO direct_messages (message, conversation_id, sender_id)
+          VALUES ($1, $2, $3)
+          RETURNING id, conversation_id, sender_id, message, sent_at
+        )
+        SELECT
+          i.id,
+          i.conversation_id AS "conversationId",
+          i.sender_id AS "senderId",
+          u.username,
+          u.avatar_url AS "avatarUrl",
+          i.message,
+          i.sent_at AS "time"
+        FROM inserted i
+        JOIN users u
+        ON u.id = i.sender_id`,
+        [cleanMessage, cleanConversationId, userId],
+      );
 
-    const io = getIO();
+      await client.query(
+        `UPDATE conversations
+         SET last_message_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [cleanConversationId],
+      );
 
-    io.to(`dm_${cleanConversationId}`).emit("receive_message", {
-      roomId: `dm_${cleanConversationId}`,
-      ...newMessage,
-    });
+      await client.query("COMMIT");
 
-    io.to(`user_${receiverId}`).emit("dm_unread_notification", {
-      conversationId: cleanConversationId,
-    });
+      const newMessage = result.rows[0];
 
-    return res.status(201).json(newMessage);
+      const io = getIO();
+
+      io.to(`dm_${cleanConversationId}`).emit("receive_message", {
+        roomId: `dm_${cleanConversationId}`,
+        ...newMessage,
+      });
+
+      io.to(`user_${receiverId}`).emit("dm_unread_notification", {
+        conversationId: cleanConversationId,
+      });
+
+      return res.status(201).json(newMessage);
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   } catch (err) {
-    return res.status(500).json({
-      message: err.message,
-    });
+    console.error(err);
+    return res.status(500).json({ message: err.message });
   }
 }
 
@@ -161,7 +178,7 @@ export async function updateDmLastSeen(req, res) {
 export const getChannelMessages = async (req, res) => {
   const { channelId } = req.params;
 
-  const limit = Math.min(Number(req.query.limit) || 20, 50);
+  const limit = Math.min(Number(req.query.limit) || 20, 30);
   const before = req.query.before ? Number(req.query.before) : null;
 
   try {
@@ -177,7 +194,7 @@ export const getChannelMessages = async (req, res) => {
       JOIN users u ON u.id = m.sender_id
       WHERE m.channel_id = $1
       ${before ? "AND m.id < $2" : ""}
-      ORDER BY m.id DESC
+      ORDER BY m.sent_at DESC
       LIMIT $${before ? 3 : 2}`;
 
     const params = before
@@ -185,7 +202,6 @@ export const getChannelMessages = async (req, res) => {
       : [channelId, limit + 1];
     const result = await pool.query(query, params);
     const hasMore = result.rows.length > limit;
-    // Remove the extra message used to determine whether more messages exist
     const messages = result.rows.slice(0, limit).reverse();
 
     res.status(200).json({

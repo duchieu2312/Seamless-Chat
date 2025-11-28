@@ -9,9 +9,9 @@ import {
   FiClock,
   FiCheck,
 } from "react-icons/fi";
-import { useState, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
-export default function PeopleView({
+function PeopleView({
   friends = [],
   blockedUsers = [],
   pendingRequests = [],
@@ -19,24 +19,94 @@ export default function PeopleView({
   onSendFriendRequest,
   setConfirmModal,
   getAvatarColor,
+  onLoadMore,
+  onSearch,
+  hasMore,
+  loading,
+  total,
 }) {
+  useEffect(() => {
+    console.log("PeopleView MOUNT");
+
+    return () => {
+      console.log("PeopleView UNMOUNT");
+    };
+  }, []);
   const [activeTab, setActiveTab] = useState("friends");
   const [addFriendInput, setAddFriendInput] = useState("");
-  const [filterInput, setFilterInput] = useState("");
-  const [debouncedFilter, setDebouncedFilter] = useState("");
+  const [filterInput, setFilterInput] = useState({
+    friends: "",
+    pending: "",
+    blocked: "",
+  });
+  const [debouncedFilter, setDebouncedFilter] = useState({
+    friends: "",
+    pending: "",
+    blocked: "",
+  });
+  const currentFilter = filterInput[activeTab];
+
+  const loadMoreRef = useRef(null);
+  const hasLeftRef = useRef(true);
+
+  const PeopleHasMore = hasMore?.[activeTab] ?? false;
+  const PeopleLoading = loading?.[activeTab] ?? false;
 
   useEffect(() => {
     const handler = setTimeout(() => {
-      setDebouncedFilter(filterInput);
+      setDebouncedFilter((prev) => ({
+        ...prev,
+        [activeTab]: currentFilter,
+      }));
     }, 300);
-
     return () => clearTimeout(handler);
-  }, [filterInput]);
+  }, [activeTab, currentFilter]);
+
+  useEffect(() => {
+    onSearch?.(activeTab, debouncedFilter[activeTab]);
+    // Intentionally exclude activeTab: switching tabs should not trigger a new search.
+    // Search only runs when the debounced filter changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedFilter[activeTab]]);
+
+  useEffect(() => {
+    const target = loadMoreRef.current;
+
+    if (!target) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+
+        if (!entry.isIntersecting) {
+          hasLeftRef.current = true;
+          return;
+        }
+
+        if (
+          entry.isIntersecting &&
+          hasLeftRef.current &&
+          PeopleHasMore &&
+          !PeopleLoading
+        ) {
+          hasLeftRef.current = false;
+          onLoadMore?.(activeTab);
+        }
+      },
+      {
+        threshold: 0.1,
+      },
+    );
+
+    observer.observe(target);
+
+    return () => observer.disconnect();
+  }, [activeTab, PeopleHasMore, PeopleLoading, onLoadMore]);
 
   const tabs = [
-    { id: "friends", label: "Friends", count: friends.length },
-    { id: "pending", label: "Pending", count: pendingRequests.length },
-    { id: "blocked", label: "Blocked", count: blockedUsers.length },
+    { id: "friends", label: "Friends", count: total.friends },
+    { id: "pending", label: "Pending", count: total.pending },
+    { id: "blocked", label: "Blocked", count: total.blocked },
   ];
 
   const handleSendRequest = () => {
@@ -46,20 +116,6 @@ export default function PeopleView({
       setAddFriendInput("");
     }
   };
-
-  const search = debouncedFilter.toLowerCase();
-
-  const filteredFriends = friends.filter((f) =>
-    f.username.toLowerCase().includes(search),
-  );
-
-  const filteredPending = pendingRequests.filter((p) =>
-    p.username.toLowerCase().includes(search),
-  );
-
-  const filteredBlocked = blockedUsers.filter((u) =>
-    u.username.toLowerCase().includes(search),
-  );
 
   return (
     <div className="flex-1 overflow-y-auto p-8 select-none">
@@ -101,7 +157,6 @@ export default function PeopleView({
                 key={tab.id}
                 onClick={() => {
                   setActiveTab(tab.id);
-                  setFilterInput("");
                 }}
                 className={`flex-1 px-6 py-4 text-sm font-semibold transition-all relative
                   ${activeTab === tab.id ? "text-white" : "text-gray-400 hover:text-gray-200 hover:bg-white/5"}`}
@@ -122,8 +177,13 @@ export default function PeopleView({
               />
               <input
                 type="text"
-                value={filterInput}
-                onChange={(e) => setFilterInput(e.target.value)}
+                value={filterInput[activeTab]}
+                onChange={(e) =>
+                  setFilterInput((prev) => ({
+                    ...prev,
+                    [activeTab]: e.target.value,
+                  }))
+                }
                 placeholder={`Search in ${activeTab}...`}
                 className="w-full bg-black/20 border border-white/5 rounded-xl pl-11 pr-4 py-2 text-xs text-gray-200 placeholder:text-gray-500 focus:outline-none focus:border-indigo-500/30"
               />
@@ -134,14 +194,14 @@ export default function PeopleView({
                ========================================== */}
             {activeTab === "friends" && (
               <div className="space-y-3">
-                {filteredFriends.length === 0 ? (
+                {friends.length === 0 ? (
                   <div className="text-center py-12 text-gray-500 text-sm">
-                    {debouncedFilter
+                    {debouncedFilter.friends
                       ? "No matching friends found."
                       : "No friends yet. Add some!"}
                   </div>
                 ) : (
-                  filteredFriends.map((friend) => (
+                  friends.map((friend) => (
                     <motion.div
                       key={friend.id}
                       whileHover={{ x: 4 }}
@@ -230,14 +290,14 @@ export default function PeopleView({
                ========================================== */}
             {activeTab === "pending" && (
               <div className="space-y-3">
-                {filteredPending.length === 0 ? (
+                {pendingRequests.length === 0 ? (
                   <div className="text-center py-12 text-gray-500 text-sm">
-                    {debouncedFilter
+                    {debouncedFilter.pending
                       ? "No matching requests found."
                       : "No pending friend requests."}
                   </div>
                 ) : (
-                  filteredPending.map((reqUser) => (
+                  pendingRequests.map((reqUser) => (
                     <motion.div
                       key={reqUser.id}
                       whileHover={{ x: 4 }}
@@ -306,14 +366,14 @@ export default function PeopleView({
                ========================================== */}
             {activeTab === "blocked" && (
               <div className="space-y-3">
-                {filteredBlocked.length === 0 ? (
+                {blockedUsers.length === 0 ? (
                   <div className="text-center py-12 text-gray-500 text-sm">
-                    {debouncedFilter
+                    {debouncedFilter.blocked
                       ? "No matching blocked users found."
                       : "Your block list is clean."}
                   </div>
                 ) : (
-                  filteredBlocked.map((user) => (
+                  blockedUsers.map((user) => (
                     <motion.div
                       key={user.id}
                       whileHover={{ x: 4 }}
@@ -340,7 +400,7 @@ export default function PeopleView({
                           {user.username}
                         </div>
                         <div className="text-xs text-gray-500 mt-0.5">
-                          Blocked on {user.blockedAt || "N/A"}
+                          Blocked on {user.updatedAt || "N/A"}
                         </div>
                       </div>
 
@@ -361,9 +421,29 @@ export default function PeopleView({
                 )}
               </div>
             )}
+            <div
+              ref={loadMoreRef}
+              className="h-10 flex items-center justify-center"
+            >
+              {PeopleLoading && (
+                <span className="text-xs text-gray-500">Loading more...</span>
+              )}
+
+              {!PeopleLoading &&
+                !PeopleHasMore &&
+                ((activeTab === "friends" && friends.length > 0) ||
+                  (activeTab === "pending" && pendingRequests.length > 0) ||
+                  (activeTab === "blocked" && blockedUsers.length > 0)) && (
+                  <span className="text-xs text-gray-600">
+                    No more {activeTab}.
+                  </span>
+                )}
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 }
+
+export default React.memo(PeopleView);
