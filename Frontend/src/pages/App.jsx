@@ -31,13 +31,7 @@ const getAvatarColor = (username) => {
 export default function App() {
   const { user } = useAuth();
   const socketRef = useRef(null);
-  useEffect(() => {
-    console.log("App MOUNT");
 
-    return () => {
-      console.log("App UNMOUNT");
-    };
-  }, []);
   // ==========================================
   // CORE STATES
   // ==========================================
@@ -168,6 +162,15 @@ export default function App() {
     }
   }, []);
 
+  const fetchServerMembers = useCallback(async (serverId) => {
+    try {
+      const res = await axiosInstance.get(`/servers/${serverId}/members`);
+      setServerMembers(res.data);
+    } catch (err) {
+      console.error("Failed to fetch members:", err);
+    }
+  }, []);
+
   const fetchPeople = useCallback(
     async (type, page = 1, search = "", append = false) => {
       const config = {
@@ -294,15 +297,6 @@ export default function App() {
     [],
   );
 
-  const fetchServerMembers = useCallback(async (serverId) => {
-    try {
-      const res = await axiosInstance.get(`/servers/${serverId}/members`);
-      setServerMembers(res.data);
-    } catch (err) {
-      console.error("Failed to fetch members:", err);
-    }
-  }, []);
-
   // Fetch initial application data after user authentication
   useEffect(() => {
     if (!user) return;
@@ -364,14 +358,11 @@ export default function App() {
     // Handle background notification increments for other DMs
     socketRef.current.on("dm_unread_notification", ({ conversationId }) => {
       if (Number(conversationId) !== Number(activeDMRef.current)) {
-        setFriends((prevFriends) =>
-          prevFriends.map((f) =>
-            Number(f.conversationId) === Number(conversationId)
-              ? {
-                  ...f,
-                  unread: (f.unread || 0) + 1,
-                }
-              : f,
+        setConversations((prevConversations) =>
+          prevConversations.map((conversation) =>
+            Number(conversation.id) === Number(conversationId)
+              ? { ...conversation, unread: (conversation.unread || 0) + 1 }
+              : conversation,
           ),
         );
       }
@@ -392,6 +383,14 @@ export default function App() {
       setFriends((prevFriends) =>
         prevFriends.map((f) =>
           String(f.id) === String(userId) ? { ...f, status: status } : f,
+        ),
+      );
+
+      setConversations((prevConversations) =>
+        prevConversations.map((conversation) =>
+          String(conversation.userId) === String(userId)
+            ? { ...conversation, status }
+            : conversation,
         ),
       );
     });
@@ -619,14 +618,14 @@ export default function App() {
   useEffect(() => {
     if (!activeDM) return;
 
-    setFriends((prevFriends) =>
-      prevFriends.map((f) =>
-        Number(f.conversationId) === Number(activeDM)
+    setConversations((prevConversations) =>
+      prevConversations.map((conversation) =>
+        Number(conversation.id) === Number(activeDM)
           ? {
-              ...f,
+              ...conversation,
               unread: 0,
             }
-          : f,
+          : conversation,
       ),
     );
 
@@ -757,7 +756,8 @@ export default function App() {
         {
           params: {
             limit: 15,
-            before: oldestMessage.id,
+            beforeTime: oldestMessage.time,
+            beforeId: oldestMessage.id,
           },
         },
       );
@@ -799,7 +799,8 @@ export default function App() {
         {
           params: {
             limit: 15,
-            before: oldestMessage.id,
+            beforeTime: oldestMessage.time,
+            beforeId: oldestMessage.id,
           },
         },
       );
@@ -884,12 +885,11 @@ export default function App() {
         `/users/friends/accept/${targetUser.id}`,
       );
 
-      const [friendsRes, pendingRes] = await Promise.all([
-        axiosInstance.get("/users/friends"),
-        axiosInstance.get("/users/friends/pending"),
+      await Promise.all([
+        fetchPeople("friends", 1, peopleSearch.friends),
+        fetchPeople("pending", 1, peopleSearch.pending),
+        fetchConversations(),
       ]);
-      setFriends(friendsRes.data);
-      setPendingRequests(pendingRes.data);
 
       toast.success(response.data?.message || "Accepted friend request.");
     } catch (err) {
@@ -907,8 +907,7 @@ export default function App() {
         `/users/friends/decline/${targetUser.id}`,
       );
 
-      const pendingRes = await axiosInstance.get("/users/friends/pending");
-      setPendingRequests(pendingRes.data);
+      fetchPeople("pending", 1, peopleSearch.pending);
 
       toast.success(
         response.data?.message ||
@@ -927,12 +926,11 @@ export default function App() {
     try {
       await axiosInstance.post(`/users/friends/block/${targetUser.id}`);
 
-      const [friendsRes, blockedRes] = await Promise.all([
-        axiosInstance.get("/users/friends"),
-        axiosInstance.get("/users/friends/blocked"),
+      await Promise.all([
+        fetchPeople("friends", 1, peopleSearch.friends),
+        fetchPeople("blocked", 1, peopleSearch.blocked),
+        fetchConversations(),
       ]);
-      setFriends(friendsRes.data);
-      setBlockedUsers(blockedRes.data);
 
       setActiveDM(null);
 
@@ -948,8 +946,10 @@ export default function App() {
     try {
       await axiosInstance.delete(`/users/friends/unfriend/${targetUser.id}`);
 
-      const friendRes = await axiosInstance.get("/users/friends");
-      setFriends(friendRes.data);
+      await Promise.all([
+        fetchPeople("friends", 1, peopleSearch.friends),
+        fetchConversations(),
+      ]);
 
       setActiveDM(null);
 
@@ -965,8 +965,7 @@ export default function App() {
     try {
       await axiosInstance.delete(`/users/friends/unblock/${targetUser.id}`);
 
-      const blockedRes = await axiosInstance.get("/users/friends/blocked");
-      setBlockedUsers(blockedRes.data);
+      fetchPeople("blocked", 1, peopleSearch.blocked);
 
       toast.success(`Unblocked ${targetUser.username}`);
     } catch (err) {
@@ -1118,13 +1117,13 @@ export default function App() {
   }, [serverMembers]);
 
   const activeChannelData = useMemo(
-    () => textChannels.find((c) => c.id === activeChannel),
+    () => textChannels.find((c) => Number(c.id) === Number(activeChannel)),
     [textChannels, activeChannel],
   );
 
-  const activeFriend = useMemo(
-    () => friends.find((f) => Number(f.conversationId) === Number(activeDM)),
-    [friends, activeDM],
+  const activeConversationData = useMemo(
+    () => conversations.find((c) => Number(c.id) === Number(activeDM)),
+    [conversations, activeDM],
   );
   // ==========================================
   // DYNAMIC VIEW ROUTER RENDERING
@@ -1159,7 +1158,7 @@ export default function App() {
     if (activeDM) {
       return (
         <ChatArea
-          channel={activeFriend}
+          channel={activeConversationData}
           messages={dmMessages[activeDM] || []}
           onSendMessage={handleSendDM}
           isDM={true}

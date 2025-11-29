@@ -25,13 +25,6 @@ function PeopleView({
   loading,
   total,
 }) {
-  useEffect(() => {
-    console.log("PeopleView MOUNT");
-
-    return () => {
-      console.log("PeopleView UNMOUNT");
-    };
-  }, []);
   const [activeTab, setActiveTab] = useState("friends");
   const [addFriendInput, setAddFriendInput] = useState("");
   const [filterInput, setFilterInput] = useState({

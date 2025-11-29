@@ -5,7 +5,8 @@ export const getDirectMessages = async (req, res) => {
   const { conversationId } = req.params;
 
   const limit = Math.min(Number(req.query.limit) || 20, 30);
-  const before = req.query.before ? Number(req.query.before) : null;
+  const beforeTime = req.query.beforeTime || null;
+  const beforeId = req.query.beforeId ? Number(req.query.beforeId) : null;
 
   try {
     const query = `
@@ -19,13 +20,25 @@ export const getDirectMessages = async (req, res) => {
       FROM direct_messages dm
       JOIN users u ON u.id = dm.sender_id
       WHERE dm.conversation_id = $1
-      ${before ? "AND dm.id < $2" : ""}
-      ORDER BY dm.sent_at DESC
-      LIMIT $${before ? 3 : 2}`;
+      ${
+        beforeTime && beforeId
+          ? `AND (
+              dm.sent_at < $2::timestamptz
+              OR (
+                dm.sent_at = $2::timestamptz
+                AND dm.id < $3
+              )
+            )`
+          : ""
+      }
+      ORDER BY dm.sent_at DESC, dm.id DESC
+      LIMIT $${beforeTime && beforeId ? 4 : 2}`;
 
-    const params = before
-      ? [conversationId, before, limit + 1]
-      : [conversationId, limit + 1];
+    const params =
+      beforeTime && beforeId
+        ? [conversationId, beforeTime, beforeId, limit + 1]
+        : [conversationId, limit + 1];
+
     const result = await pool.query(query, params);
     const hasMore = result.rows.length > limit;
     const messages = result.rows.slice(0, limit).reverse();
@@ -179,7 +192,8 @@ export const getChannelMessages = async (req, res) => {
   const { channelId } = req.params;
 
   const limit = Math.min(Number(req.query.limit) || 20, 30);
-  const before = req.query.before ? Number(req.query.before) : null;
+  const beforeTime = req.query.beforeTime || null;
+  const beforeId = req.query.beforeId ? Number(req.query.beforeId) : null;
 
   try {
     const query = `
@@ -193,13 +207,25 @@ export const getChannelMessages = async (req, res) => {
       FROM channel_messages m
       JOIN users u ON u.id = m.sender_id
       WHERE m.channel_id = $1
-      ${before ? "AND m.id < $2" : ""}
-      ORDER BY m.sent_at DESC
-      LIMIT $${before ? 3 : 2}`;
+      ${
+        beforeTime && beforeId
+          ? `AND (
+              m.sent_at < $2::timestamptz
+              OR (
+                m.sent_at = $2::timestamptz
+                AND m.id < $3
+              )
+            )`
+          : ""
+      }
+      ORDER BY m.sent_at DESC, m.id DESC
+      LIMIT $${beforeTime && beforeId ? 4 : 2}`;
 
-    const params = before
-      ? [channelId, before, limit + 1]
-      : [channelId, limit + 1];
+    const params =
+      beforeTime && beforeId
+        ? [channelId, beforeTime, beforeId, limit + 1]
+        : [channelId, limit + 1];
+
     const result = await pool.query(query, params);
     const hasMore = result.rows.length > limit;
     const messages = result.rows.slice(0, limit).reverse();

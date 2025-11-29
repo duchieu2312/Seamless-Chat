@@ -103,10 +103,9 @@ function MessageList({
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-center">
         <h2 className="text-xl font-semibold text-white mb-2">
-          Welcome to{" "}
           {isDM
-            ? `@${channel?.name || "this chat"}`
-            : `#${channel?.name || "this channel"}`}
+            ? `Chat with @${channel?.username || "this person"}`
+            : `Welcome to #${channel?.name || "this channel"}`}
           !
         </h2>
         <p className="text-gray-400">

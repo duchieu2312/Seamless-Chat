@@ -61,17 +61,19 @@ export async function getConversations(req, res) {
           THEN c.user_two_id
           ELSE c.user_one_id
         END
-      AND EXISTS (
-        SELECT 1
-        FROM friendships f
-        WHERE (
-          (f.user_id = $1 AND f.friend_id = u.id)
-          OR
-          (f.user_id = u.id AND f.friend_id = $1)
+      WHERE
+        (c.user_one_id = $1 OR c.user_two_id = $1)
+        AND EXISTS (
+          SELECT 1
+          FROM friendships f
+          WHERE (
+            (f.user_id = $1 AND f.friend_id = u.id)
+            OR
+            (f.user_id = u.id AND f.friend_id = $1)
+          )
+          AND f.status = 'accepted'
         )
-        AND f.status = 'accepted'
-      )
-      ORDER BY c.last_message_at ASC NULLS LAST
+      ORDER BY c.last_message_at DESC NULLS LAST
       LIMIT $2
       OFFSET $3`,
       [userId, limit + 1, offset],
