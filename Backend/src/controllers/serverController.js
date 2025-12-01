@@ -123,6 +123,76 @@ export async function joinServer(req, res) {
   }
 }
 
+export async function joinServerByCode(req, res) {
+  const client = await pool.connect();
+
+  try {
+    const userId = req.user.id;
+    const cleanCode = req.body.code?.trim();
+
+    if (!cleanCode) {
+      return res.status(400).json({ message: "Invite code is required." });
+    }
+
+    await client.query("BEGIN");
+
+    const serverResult = await client.query(
+      `SELECT s.id, s.is_public
+       FROM servers s
+       WHERE s.invite_code = $1`,
+      [cleanCode],
+    );
+
+    if (serverResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Invalid invite code." });
+    }
+
+    const { id: serverId } = serverResult.rows[0];
+
+    const joined = await client.query(
+      `SELECT 1
+       FROM server_members sm
+       WHERE sm.server_id = $1
+       AND sm.member_id = $2`,
+      [serverId, userId],
+    );
+
+    if (joined.rowCount > 0) {
+      await client.query("ROLLBACK");
+      return res
+        .status(400)
+        .json({ message: "You have already joined this server." });
+    }
+
+    await client.query(
+      `INSERT INTO server_members(server_id, member_id)
+       VALUES($1, $2)`,
+      [serverId, userId],
+    );
+
+    await client.query("COMMIT");
+
+    const io = getIO();
+
+    io.to(`user_${userId}`).emit("servers_updated");
+
+    io.to(`server_${serverId}`).emit("server_members_updated", {
+      serverId,
+    });
+
+    res.json({
+      message: "Joined server successfully.",
+      serverId,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    res.status(500).json({ message: err.message });
+  } finally {
+    client.release();
+  }
+}
+
 export async function leaveServer(req, res) {
   try {
     const userId = req.user.id;

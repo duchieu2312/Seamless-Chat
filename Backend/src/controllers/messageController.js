@@ -2,13 +2,13 @@ import pool from "../config/db.js";
 import { getIO } from "../socket.js";
 
 export const getDirectMessages = async (req, res) => {
-  const { conversationId } = req.params;
-
-  const limit = Math.min(Number(req.query.limit) || 20, 30);
-  const beforeTime = req.query.beforeTime || null;
-  const beforeId = req.query.beforeId ? Number(req.query.beforeId) : null;
-
   try {
+    const { conversationId } = req.params;
+
+    const limit = Math.min(Number(req.query.limit) || 20, 30);
+    const beforeTime = req.query.beforeTime || null;
+    const beforeId = req.query.beforeId ? Number(req.query.beforeId) : null;
+
     const query = `
       SELECT
         dm.id,
@@ -189,13 +189,13 @@ export async function updateDmLastSeen(req, res) {
 }
 
 export const getChannelMessages = async (req, res) => {
-  const { channelId } = req.params;
-
-  const limit = Math.min(Number(req.query.limit) || 20, 30);
-  const beforeTime = req.query.beforeTime || null;
-  const beforeId = req.query.beforeId ? Number(req.query.beforeId) : null;
-
   try {
+    const { channelId } = req.params;
+
+    const limit = Math.min(Number(req.query.limit) || 20, 30);
+    const beforeTime = req.query.beforeTime || null;
+    const beforeId = req.query.beforeId ? Number(req.query.beforeId) : null;
+
     const query = `
       SELECT
         m.id,

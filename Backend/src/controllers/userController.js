@@ -361,6 +361,7 @@ export async function sendFriendRequest(req, res) {
 
 export async function acceptFriendRequest(req, res) {
   const client = await pool.connect();
+
   try {
     const userId = req.user.id;
     const { senderId } = req.params;

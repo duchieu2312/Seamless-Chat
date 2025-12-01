@@ -7,7 +7,8 @@ import {
   FiUserCheck,
   FiUserMinus,
 } from "react-icons/fi";
-import React from "react";
+import React, { useState } from "react";
+import { createPortal } from "react-dom";
 
 function ConfirmModal({
   confirmModal,
@@ -18,34 +19,55 @@ function ConfirmModal({
   onUnfriend,
   onUnblock,
 }) {
+  const [processing, setProcessing] = useState(false);
+
   const handleClose = () => {
+    if (processing) return;
+
     setConfirmModal({ open: false, type: "", friend: null });
   };
 
-  const executeAction = () => {
+  const executeAction = async () => {
     const target = confirmModal.friend;
-    if (!target) return;
 
-    switch (confirmModal.type) {
-      case "accept":
-        if (onAcceptFriend) onAcceptFriend(target);
-        break;
-      case "decline":
-        if (onDeclineFriend) onDeclineFriend(target);
-        break;
-      case "unfriend":
-        if (onUnfriend) onUnfriend(target);
-        break;
-      case "block":
-        if (onBlock) onBlock(target);
-        break;
-      case "unblock":
-        if (onUnblock) onUnblock(target);
-        break;
-      default:
-        break;
+    if (!target || processing) return;
+
+    setProcessing(true);
+
+    try {
+      let success = false;
+
+      switch (confirmModal.type) {
+        case "accept":
+          success = await onAcceptFriend(target);
+          break;
+
+        case "decline":
+          success = await onDeclineFriend(target);
+          break;
+
+        case "unfriend":
+          success = await onUnfriend(target);
+          break;
+
+        case "block":
+          success = await onBlock(target);
+          break;
+
+        case "unblock":
+          success = await onUnblock(target);
+          break;
+
+        default:
+          break;
+      }
+
+      if (success) {
+        handleClose();
+      }
+    } finally {
+      setProcessing(false);
     }
-    handleClose();
   };
 
   const config = {
@@ -64,7 +86,7 @@ function ConfirmModal({
       btnText: "Decline",
       btnClass: "bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/20",
       iconBg: "bg-red-500/20 text-red-400",
-      icon: FiUserMinus,
+      icon: FiUserX,
     },
     unfriend: {
       title: "Unfriend",
@@ -73,7 +95,7 @@ function ConfirmModal({
       btnClass:
         "bg-orange-500 hover:bg-orange-600 shadow-lg shadow-orange-500/20",
       iconBg: "bg-orange-500/20 text-orange-400",
-      icon: FiUserX,
+      icon: FiUserMinus,
     },
     block: {
       title: "Block User",
@@ -94,39 +116,42 @@ function ConfirmModal({
   };
 
   const current = config[confirmModal.type];
+
   if (!current) return null;
+
   const Icon = current.icon;
 
-  return (
+  return createPortal(
     <AnimatePresence mode="wait">
       {confirmModal.open && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4"
-          onClick={handleClose}
-        >
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 select-none">
+          {/* Backdrop Blur Overlay */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={handleClose}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          />
+
           {/* Modal Container */}
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 10 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 10 }}
             transition={{ type: "spring", duration: 0.3, bounce: 0.15 }}
-            onClick={(e) => e.stopPropagation()} // Prevents overlay click triggers inside content box
-            className="bg-[#1e293b] border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl relative overflow-hidden select-none"
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#1e293b] border border-white/10 w-full max-w-md rounded-2xl p-6 shadow-2xl relative z-10 text-gray-100 overflow-hidden"
           >
             {/* Top Close Button */}
             <button
               onClick={handleClose}
-              className="absolute top-4 right-4 p-1.5 hover:bg-white/5 rounded-lg transition-colors group"
+              disabled={processing}
+              className="absolute top-4 right-4 p-1.5 hover:bg-white/5 rounded-lg text-gray-400 hover:text-white transition-colors disabled:opacity-50"
               title="Close"
             >
-              <FiX
-                size={18}
-                className="text-gray-400 group-hover:text-white transition-colors"
-              />
+              <FiX size={18} />
             </button>
 
             {/* Header & Body Content */}
@@ -146,27 +171,30 @@ function ConfirmModal({
               </div>
             </div>
 
-            {/* Action Buttons Workspace */}
+            {/* Action Buttons */}
             <div className="flex gap-3 justify-end border-t border-white/5 pt-4">
               <button
                 type="button"
                 onClick={handleClose}
-                className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl text-sm font-semibold transition-all"
+                disabled={processing}
+                className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={executeAction}
-                className={`px-5 py-2.5 ${current.btnClass} text-white rounded-xl text-sm font-semibold transition-all`}
+                disabled={processing}
+                className={`px-5 py-2.5 ${current.btnClass} text-white rounded-xl text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                {current.btnText}
+                {processing ? "Processing..." : current.btnText}
               </button>
             </div>
           </motion.div>
-        </motion.div>
+        </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
 

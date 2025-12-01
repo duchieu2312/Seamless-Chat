@@ -1,18 +1,22 @@
 import { motion } from "framer-motion";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { FiSearch } from "react-icons/fi";
 import { toast } from "sonner";
+import JoinServerByCodeModal from "./JoinServerByCodeModal";
 
 function CommunityView({
   communities = [],
   getAvatarColor,
   onJoinServer,
+  onJoinPrivateServer,
   communitySearch,
   setCommunitySearch,
   onLoadMore,
   hasMore,
   loading,
 }) {
+  const [isEnterCodeModalOpen, setIsEnterCodeModalOpen] = useState(false);
+
   const loadMoreRef = useRef(null);
   const hasLeftRef = useRef(true);
 
@@ -65,6 +69,16 @@ function CommunityView({
               placeholder="Search public communities..."
               className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-sm text-gray-200 placeholder:text-gray-500 focus:outline-none focus:border-indigo-500/50 transition-colors"
             />
+          </div>
+          <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/5">
+            <span className="text-sm text-gray-400">Have an invite code?</span>
+            <button
+              type="button"
+              onClick={() => setIsEnterCodeModalOpen(true)}
+              className="px-4 py-2 rounded-lg text-sm font-semibold bg-white/10 hover:bg-white/15 text-gray-200 transition-colors"
+            >
+              Join Community By Code
+            </button>
           </div>
         </div>
 
@@ -137,6 +151,11 @@ function CommunityView({
           </div>
         )}
       </div>
+      <JoinServerByCodeModal
+        isOpen={isEnterCodeModalOpen}
+        onClose={() => setIsEnterCodeModalOpen(false)}
+        onJoinServer={onJoinPrivateServer}
+      />
     </div>
   );
 }

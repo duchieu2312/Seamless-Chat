@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { FiHome, FiPlus } from "react-icons/fi";
 import React, { useState } from "react";
+import CreateServerModal from "./CreateServerModal";
 
 function Sidebar({
   currentSpace,
@@ -8,10 +9,11 @@ function Sidebar({
   servers,
   activeServer,
   onServerClick,
+  onCreateServer,
   getAvatarColor,
-  onOpenCreateServer,
 }) {
   const [hoveredServer, setHoveredServer] = useState(null);
+  const [isCreateServerOpen, setIsCreateServerOpen] = useState(false);
 
   return (
     <div className="w-[80px] min-w-[80px] max-w-[80px] basis-[80px] flex-shrink-0 bg-black/20 backdrop-blur-xl border-r border-white/5 flex flex-col items-center py-4 relative z-50 overflow-visible">
@@ -123,7 +125,7 @@ function Sidebar({
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.95 }}
-          onClick={onOpenCreateServer}
+          onClick={() => setIsCreateServerOpen(true)}
           className="w-14 h-14 min-h-[56px] rounded-2xl bg-white/5 backdrop-blur-md flex items-center justify-center text-green-500 hover:bg-green-500 hover:text-white transition-colors border border-white/10 relative group"
         >
           <span className="transition-transform duration-200 group-hover:rotate-90 flex items-center justify-center">
@@ -136,6 +138,11 @@ function Sidebar({
           </div>
         </motion.button>
       </div>
+      <CreateServerModal
+        isOpen={isCreateServerOpen}
+        onClose={() => setIsCreateServerOpen(false)}
+        onCreateServer={onCreateServer}
+      />
     </div>
   );
 }

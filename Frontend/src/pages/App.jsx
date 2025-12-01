@@ -11,7 +11,6 @@ import HomeView from "../components/app/HomeView";
 import PeopleView from "../components/app/PeopleView";
 import CommunityView from "../components/app/CommunityView";
 import ConfirmModal from "../components/app/ConfirmModal";
-import CreateServerModal from "../components/app/CreateServerModal";
 import { io } from "socket.io-client";
 
 // Deterministic avatar color picker based on username
@@ -93,15 +92,18 @@ export default function App() {
   }); // Conversation ID for Direct Messages
 
   // Servers / Channels States
-  const [serverHistory, setServerHistory] = useState({});
+  const [serverHistory, setServerHistory] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("server_history")) || {};
+    } catch {
+      return {};
+    }
+  });
   const [activeServer, setActiveServer] = useState(() => {
     const saved = localStorage.getItem("last_active_server");
     return saved ? Number(saved) : null;
   });
-  const [activeChannel, setActiveChannel] = useState(() => {
-    const saved = localStorage.getItem("last_active_channel");
-    return saved ? Number(saved) : null;
-  });
+  const [activeChannel, setActiveChannel] = useState(null);
   const [servers, setServers] = useState([]);
   const [textChannels, setTextChannels] = useState([]);
   const [channelMessages, setChannelMessages] = useState({});
@@ -111,7 +113,6 @@ export default function App() {
   const [serverMembers, setServerMembers] = useState([]);
 
   // Input states
-  const [isCreateServerOpen, setIsCreateServerOpen] = useState(false);
   const [confirmModal, setConfirmModal] = useState({
     open: false,
     type: "",
@@ -396,15 +397,15 @@ export default function App() {
     });
 
     socketRef.current.on("friends_updated", () => {
-      fetchPeople("friends", 1, peopleSearchRef.friends, false);
+      fetchPeople("friends", 1, peopleSearchRef.current.friends, false);
     });
 
     socketRef.current.on("pending_updated", () => {
-      fetchPeople("pending", 1, peopleSearchRef.pending, false);
+      fetchPeople("pending", 1, peopleSearchRef.current.pending, false);
     });
 
     socketRef.current.on("blocked_updated", () => {
-      fetchPeople("blocked", 1, peopleSearchRef.blocked, false);
+      fetchPeople("blocked", 1, peopleSearchRef.current.blocked, false);
     });
 
     socketRef.current.on("servers_updated", () => {
@@ -472,7 +473,12 @@ export default function App() {
     };
   }, [activeDM]);
 
-  // Fetch channel layouts and member roster whenever the active server switches
+  // Persist the last active channel for each server across page reloads
+  useEffect(() => {
+    localStorage.setItem("server_history", JSON.stringify(serverHistory));
+  }, [serverHistory]);
+
+  // Fetch server infrastructure whenever the active server switches
   useEffect(() => {
     if (!activeServer) return;
 
@@ -486,28 +492,37 @@ export default function App() {
         const text = channelsRes.data.filter((c) => c.type === "text");
         const voice = channelsRes.data.filter((c) => c.type === "voice");
 
-        setTextChannels(text);
         setVoiceChannels(voice);
         setServerMembers(membersRes.data);
 
-        // Fallback to last active channel or primary text channel of the chosen server
         setServerHistory((prevHistory) => {
-          if (text.length > 0 && !prevHistory[activeServer]) {
-            const savedChannelId = localStorage.getItem("last_active_channel");
-            const parsedSavedId = savedChannelId
-              ? Number(savedChannelId)
-              : null;
+          const historicalChannelId = prevHistory[activeServer];
 
-            const existsInServer = text.some(
-              (c) => Number(c.id) === parsedSavedId,
+          const historyExists = text.some(
+            (channel) => Number(channel.id) === Number(historicalChannelId),
+          );
+
+          const targetId = historyExists ? historicalChannelId : text[0].id;
+
+          const updatedText = text.map((channel) =>
+            Number(channel.id) === Number(targetId)
+              ? { ...channel, unread: 0 }
+              : channel,
+          );
+
+          setTextChannels(updatedText);
+          setActiveChannel(targetId);
+
+          axiosInstance
+            .post(`/channels/${targetId}/last_read`)
+            .catch((err) =>
+              console.error("Error updating last read position:", err),
             );
-            const targetId = existsInServer ? parsedSavedId : text[0].id;
 
-            setActiveChannel(targetId);
-            localStorage.setItem("last_active_channel", targetId);
-            return { ...prevHistory, [activeServer]: targetId };
-          }
-          return prevHistory;
+          return {
+            ...prevHistory,
+            [activeServer]: targetId,
+          };
         });
       } catch (err) {
         console.error("Error fetching server infrastructure details:", err);
@@ -685,26 +700,25 @@ export default function App() {
     localStorage.setItem("last_active_dm", conversationId);
   }, []);
 
-  const handleServerClick = useCallback((serverId) => {
-    setCurrentSpace("SERVER");
-    setActiveServer(serverId);
-    localStorage.setItem("last_current_space", "SERVER");
-    localStorage.setItem("last_active_server", serverId);
+  const handleServerClick = useCallback(
+    (serverId) => {
+      setCurrentSpace("SERVER");
+      setActiveServer(serverId);
 
-    setServerHistory((prev) => {
-      const historicalChannelId = prev[serverId];
-      const targetChannel = historicalChannelId || "";
-      setActiveChannel(targetChannel);
-      if (targetChannel)
-        localStorage.setItem("last_active_channel", targetChannel);
-      return prev;
-    });
-  }, []);
+      localStorage.setItem("last_current_space", "SERVER");
+      localStorage.setItem("last_active_server", serverId);
+
+      const historicalChannelId = serverHistory[serverId];
+
+      setActiveChannel(historicalChannelId || null);
+    },
+    [serverHistory],
+  );
 
   const handleChannelClick = useCallback(
     (channelId) => {
       setActiveChannel(channelId);
-      localStorage.setItem("last_active_channel", channelId);
+
       setServerHistory((prev) => ({
         ...prev,
         [activeServer]: channelId,
@@ -892,12 +906,14 @@ export default function App() {
       ]);
 
       toast.success(response.data?.message || "Accepted friend request.");
+
+      return true;
     } catch (err) {
       toast.error(
         err.response?.data?.message || "Failed to accept friend request.",
       );
-    } finally {
-      setConfirmModal({ open: false, type: "", friend: null });
+
+      return false;
     }
   };
 
@@ -913,12 +929,14 @@ export default function App() {
         response.data?.message ||
           `Declined friend request from ${targetUser.username}`,
       );
+
+      return true;
     } catch (err) {
       toast.error(
         err.response?.data?.message || "Failed to decline friend request.",
       );
-    } finally {
-      setConfirmModal({ open: false, type: "", friend: null });
+
+      return false;
     }
   };
 
@@ -935,10 +953,12 @@ export default function App() {
       setActiveDM(null);
 
       toast.success(`Blocked ${targetUser.username}`);
+
+      return true;
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to block user.");
-    } finally {
-      setConfirmModal({ open: false, type: "", friend: null });
+
+      return false;
     }
   };
 
@@ -954,10 +974,12 @@ export default function App() {
       setActiveDM(null);
 
       toast.success(`Unfriended ${targetUser.username}`);
+
+      return true;
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to unfriend.");
-    } finally {
-      setConfirmModal({ open: false, type: "", friend: null });
+
+      return false;
     }
   };
 
@@ -968,10 +990,12 @@ export default function App() {
       fetchPeople("blocked", 1, peopleSearch.blocked);
 
       toast.success(`Unblocked ${targetUser.username}`);
+
+      return true;
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to unblock user.");
-    } finally {
-      setConfirmModal({ open: false, type: "", friend: null });
+
+      return false;
     }
   };
 
@@ -1017,6 +1041,24 @@ export default function App() {
     }
   };
 
+  const handleJoinPrivateServer = async (code) => {
+    try {
+      await axiosInstance.post("/servers/joinServerByCode", { code });
+
+      await fetchJoinedServers();
+
+      toast.success("Joined server successfully.");
+
+      return true;
+    } catch (err) {
+      toast.error(
+        err.response?.data?.message || "Failed to join private server.",
+      );
+
+      return false;
+    }
+  };
+
   const handleLeaveServer = async () => {
     if (!activeServer) return;
 
@@ -1042,7 +1084,11 @@ export default function App() {
       setServerMembers([]);
       setChannelMessages({});
       localStorage.removeItem("last_active_server");
-      localStorage.removeItem("last_active_channel");
+      setServerHistory((prev) => {
+        const updated = { ...prev };
+        delete updated[activeServer];
+        return updated;
+      });
 
       toast.success(response.data.message);
     } catch (err) {
@@ -1085,7 +1131,6 @@ export default function App() {
 
       localStorage.setItem("last_current_space", "SERVER");
       localStorage.setItem("last_active_server", serverId);
-      localStorage.setItem("last_active_channel", channelId);
 
       toast.success(`Server "${newServerData.name}" created successfully!`);
       return true;
@@ -1197,6 +1242,7 @@ export default function App() {
             communities={communities}
             getAvatarColor={getAvatarColor}
             onJoinServer={handleJoinServer}
+            onJoinPrivateServer={handleJoinPrivateServer}
             communitySearch={communitySearch}
             setCommunitySearch={setCommunitySearch}
             onLoadMore={handleLoadMoreCommunities}
@@ -1220,8 +1266,8 @@ export default function App() {
             servers={servers}
             activeServer={activeServer}
             onServerClick={handleServerClick}
+            onCreateServer={handleCreateServer}
             getAvatarColor={getAvatarColor}
-            onOpenCreateServer={() => setIsCreateServerOpen(true)}
           />
           <ServerBar
             currentSpace={currentSpace}
@@ -1262,11 +1308,6 @@ export default function App() {
         onUnblock={handleUnblock}
         onAcceptFriend={handleAcceptFriendRequest}
         onDeclineFriend={handleDeclineFriendRequest}
-      />
-      <CreateServerModal
-        isOpen={isCreateServerOpen}
-        onClose={() => setIsCreateServerOpen(false)}
-        onCreateServer={handleCreateServer}
       />
     </div>
   );

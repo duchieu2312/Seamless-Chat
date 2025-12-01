@@ -29,6 +29,7 @@ import {
 import {
   getCommunities,
   joinServer,
+  joinServerByCode,
   leaveServer,
   getJoinedServers,
   getServerChannels,
@@ -99,6 +100,7 @@ app.delete(
 // SERVER ROUTES
 app.get("/api/servers/public", authenticateToken, getCommunities);
 app.post("/api/servers/:serverId/join", authenticateToken, joinServer);
+app.post("/api/servers/joinServerByCode", authenticateToken, joinServerByCode);
 app.delete("/api/servers/:serverId/leave", authenticateToken, leaveServer);
 app.get("/api/servers/joined", authenticateToken, getJoinedServers);
 app.get(

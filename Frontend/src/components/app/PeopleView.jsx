@@ -4,6 +4,7 @@ import {
   FiUserPlus,
   FiMessageSquare,
   FiUserX,
+  FiUserMinus,
   FiSlash,
   FiUnlock,
   FiClock,
@@ -250,7 +251,7 @@ function PeopleView({
                           className="p-2 hover:bg-orange-500/20 rounded-lg transition-colors group"
                           title="Unfriend"
                         >
-                          <FiUserX
+                          <FiUserMinus
                             size={18}
                             className="text-gray-400 group-hover:text-orange-400 transition-colors"
                           />
