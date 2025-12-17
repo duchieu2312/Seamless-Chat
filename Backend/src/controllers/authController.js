@@ -8,6 +8,9 @@ const isProd = process.env.NODE_ENV === "production";
 const ACCESS_EXPIRES = "5m";
 const REFRESH_EXPIRES = "15d";
 
+const ACCESS_MAX_AGE = 5 * 60 * 1000;
+const REFRESH_MAX_AGE = 15 * 24 * 60 * 60 * 1000;
+
 function generateAccessToken(userId) {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
     expiresIn: ACCESS_EXPIRES,
@@ -16,15 +19,18 @@ function generateAccessToken(userId) {
 
 async function generateRefreshToken(userId, oldExp = null) {
   const jti = crypto.randomBytes(16).toString("hex");
-  let expiresIn = REFRESH_EXPIRES;
-  let expiresAt = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
+  let expiresIn;
+  let expiresAt;
 
   if (oldExp) {
     expiresAt = new Date(oldExp * 1000);
     const now = Math.floor(Date.now() / 1000);
     const secondsLeft = oldExp - now;
     if (secondsLeft <= 0) throw new Error("Old refresh token expired");
-    expiresIn = secondsLeft + "s";
+    expiresIn = `${secondsLeft}s`;
+  } else {
+    expiresAt = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
+    expiresIn = REFRESH_EXPIRES;
   }
 
   const refreshToken = jwt.sign(
@@ -46,7 +52,8 @@ function setAuthCookies(res, accessToken, refreshToken) {
     httpOnly: true,
     secure: isProd,
     sameSite: "lax",
-    maxAge: 5 * 60 * 1000,
+    path: "/",
+    maxAge: ACCESS_MAX_AGE,
   });
 
   res.cookie("refreshToken", refreshToken, {
@@ -54,7 +61,7 @@ function setAuthCookies(res, accessToken, refreshToken) {
     secure: isProd,
     sameSite: "lax",
     path: "/",
-    maxAge: 15 * 24 * 60 * 60 * 1000,
+    maxAge: REFRESH_MAX_AGE,
   });
 }
 
@@ -191,6 +198,7 @@ export async function refreshToken(req, res) {
       httpOnly: true,
       secure: isProd,
       sameSite: "lax",
+      path: "/",
     });
     res.clearCookie("refreshToken", {
       httpOnly: true,
@@ -210,7 +218,7 @@ export async function logoutUser(req, res) {
   if (refreshToken) {
     try {
       const decoded = jwt.decode(refreshToken);
-      if (decoded?.id) {
+      if (decoded?.id && decoded?.jti) {
         await Promise.all([
           pool.query("DELETE FROM refresh_tokens WHERE jti = $1", [
             decoded.jti,
@@ -228,6 +236,7 @@ export async function logoutUser(req, res) {
     httpOnly: true,
     secure: isProd,
     sameSite: "lax",
+    path: "/",
   });
   res.clearCookie("refreshToken", {
     httpOnly: true,

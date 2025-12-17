@@ -1,39 +1,55 @@
-import { Navigate } from "react-router";
 import { useEffect, useState } from "react";
 import axiosInstance from "../../api/axiosInstance";
+import logo from "../../assets/Logo.svg";
 
 export default function ProtectedRoute({ children }) {
   const [isAuth, setIsAuth] = useState(null);
 
-  const cachedUser = JSON.parse(localStorage.getItem("user") || "null");
-
   useEffect(() => {
-    axiosInstance
-      .get("/users/me")
-      .then((res) => {
+    const checkAuth = async () => {
+      try {
+        const { data } = await axiosInstance.get("/users/me");
+
         setIsAuth(true);
+
         localStorage.setItem(
           "user",
           JSON.stringify({
-            id: res.data.id,
-            username: res.data.username,
-            avatarUrl: res.data.avatarUrl,
+            id: data.id,
+            username: data.username,
+            avatarUrl: data.avatarUrl,
           }),
         );
-      })
-      .catch(() => {
+      } catch {
         setIsAuth(false);
-        localStorage.removeItem("user");
-      });
+      }
+    };
+
+    checkAuth();
   }, []);
 
-  if (isAuth === null && !cachedUser)
+  if (isAuth === null) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        Loading...
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative flex items-center justify-center w-12 h-12">
+            <div className="absolute inset-0 border-4 border-white/10 border-t-indigo-400 rounded-full animate-spin" />
+            <img
+              src={logo}
+              alt="Logo"
+              className="w-8 h-8 object-contain flex-shrink-0"
+            />
+          </div>
+
+          <span className="text-sm font-medium text-gray-300">Loading...</span>
+        </div>
       </div>
     );
-  if (isAuth === false) return <Navigate to="/" replace />;
+  }
+
+  if (isAuth === false) {
+    return null;
+  }
 
   return children;
 }

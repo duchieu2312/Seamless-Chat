@@ -1,10 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import LoginForm from "../components/auth/LoginForm";
 import RegisterForm from "../components/auth/RegisterForm";
 import AuthBanner from "../components/auth/AuthBanner";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
+
+  useEffect(() => {
+    const sessionExpired = localStorage.getItem("sessionExpired");
+
+    if (sessionExpired) {
+      toast.error("Session expired. Please sign in again.");
+      localStorage.removeItem("sessionExpired");
+    }
+  }, []);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-200 p-4 font-sans">

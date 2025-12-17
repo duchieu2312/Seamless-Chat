@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { FiHome, FiPlus } from "react-icons/fi";
 import React, { useState } from "react";
-import CreateServerModal from "./CreateServerModal";
+import CreateServerModal from "./Modals/CreateServerModal";
 
 function Sidebar({
   currentSpace,

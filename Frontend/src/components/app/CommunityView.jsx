@@ -2,13 +2,13 @@ import { motion } from "framer-motion";
 import React, { useEffect, useRef, useState } from "react";
 import { FiSearch } from "react-icons/fi";
 import { toast } from "sonner";
-import JoinServerByCodeModal from "./JoinServerByCodeModal";
+import JoinServerByCodeModal from "./Modals/JoinServerByCodeModal";
 
 function CommunityView({
   communities = [],
   getAvatarColor,
   onJoinServer,
-  onJoinPrivateServer,
+  onJoinServerByCode,
   communitySearch,
   setCommunitySearch,
   onLoadMore,
@@ -154,7 +154,7 @@ function CommunityView({
       <JoinServerByCodeModal
         isOpen={isEnterCodeModalOpen}
         onClose={() => setIsEnterCodeModalOpen(false)}
-        onJoinServer={onJoinPrivateServer}
+        onJoinServer={onJoinServerByCode}
       />
     </div>
   );

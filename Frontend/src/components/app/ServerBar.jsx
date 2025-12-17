@@ -8,7 +8,9 @@ import {
   FiUsers,
   FiGlobe,
 } from "react-icons/fi";
-import { HiSparkles } from "react-icons/hi2";
+import { toast } from "sonner";
+import ChangeServerDetailsModal from "./Modals/ChangeServerDetailsModal";
+import ChangeChannelsModal from "./Modals/ChangeChannelsModal";
 
 const homeItems = [
   { id: "home", icon: FiHome, label: "Home" },
@@ -33,9 +35,20 @@ function ServerBar({
   activeDM,
   onDMClick,
   getAvatarColor,
+  onChangeServerDetails,
+  onCreateChannel,
+  onRenameChannel,
+  onDeleteChannel,
   onLeaveServer,
 }) {
+  const isOwner = server?.role === "owner";
+  const isPublic = server?.isPublic;
+
   const [showMenu, setShowMenu] = useState(false);
+  const [isChangeDetailsModalOpen, setIsChangeDetailsModalOpen] =
+    useState(false);
+  const [isChangeChannelsModalOpen, setIsChangeChannelsModalOpen] =
+    useState(false);
 
   const loadMoreRef = useRef(null);
   const hasLeftRef = useRef(true);
@@ -69,6 +82,16 @@ function ServerBar({
     return () => observer.disconnect();
   }, [hasMore, loading, onLoadMore]);
 
+  const handleGetInviteCode = async () => {
+    try {
+      await navigator.clipboard.writeText(server?.inviteCode);
+
+      toast.success("Invite code copied to clipboard.");
+    } catch (err) {
+      toast.error("Failed to copy invite code.", err);
+    }
+  };
+
   return (
     <div className="w-[280px] min-w-[280px] max-w-[280px] basis-[280px] flex-shrink-0 bg-black/20 backdrop-blur-xl border-r border-white/5 flex flex-col relative z-30">
       {currentSpace === "SERVER" ? (
@@ -76,7 +99,6 @@ function ServerBar({
           {/* Server Header Information */}
           <div className="h-14 px-4 border-b border-white/5 flex items-center justify-between gap-2 flex-shrink-0">
             <div className="flex items-center gap-2 min-w-0 flex-1">
-              <HiSparkles className="text-indigo-400 flex-shrink-0" size={20} />
               <span className="font-bold text-lg truncate" title={server?.name}>
                 {server?.name}
               </span>
@@ -87,15 +109,63 @@ function ServerBar({
                 onClick={() => setShowMenu((v) => !v)}
                 className="text-gray-400 hover:text-white cursor-pointer transition-colors"
               />
-
               {showMenu && (
-                <div className="absolute right-0 mt-2 w-44 rounded-lg bg-[#1e293b] border border-white/10 shadow-xl z-50">
+                <div className="absolute right-0 mt-2 w-52 rounded-lg bg-[#1e293b] border border-white/10 shadow-xl z-50 overflow-hidden">
+                  {/* OWNER OPTIONS */}
+                  {isOwner && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setShowMenu(false);
+                          setIsChangeDetailsModalOpen(true);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-white/5"
+                      >
+                        Change Server Details
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowMenu(false);
+                          setIsChangeChannelsModalOpen(true);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-white/5"
+                      >
+                        Change Channels
+                      </button>
+                      <div className="my-1 border-t border-white/10" />
+                    </>
+                  )}
+                  {/* GET INVITE CODE - PUBLIC ALL ROLE | PRIVATE OWNER ONLY */}
+                  {(isPublic || isOwner) && (
+                    <button
+                      onClick={() => {
+                        setShowMenu(false);
+                        handleGetInviteCode();
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-white/5"
+                    >
+                      Get Invite Code
+                    </button>
+                  )}
+                  {/* DELETE SERVER - OWNER ONLY */}
+                  {isOwner && (
+                    <button
+                      onClick={() => {
+                        setShowMenu(false);
+                        // onDeleteServer();
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10"
+                    >
+                      Delete Server
+                    </button>
+                  )}
+                  {/* LEAVE */}
                   <button
                     onClick={() => {
                       setShowMenu(false);
                       onLeaveServer();
                     }}
-                    className="w-full text-left px-4 py-2 text-red-400 hover:bg-white/5"
+                    className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10"
                   >
                     Leave Server
                   </button>
@@ -284,6 +354,21 @@ function ServerBar({
           </div>
         </>
       )}
+      <ChangeServerDetailsModal
+        isOpen={isChangeDetailsModalOpen}
+        onClose={() => setIsChangeDetailsModalOpen(false)}
+        server={server}
+        onUpdateServer={onChangeServerDetails}
+      />
+      <ChangeChannelsModal
+        isOpen={isChangeChannelsModalOpen}
+        onClose={() => setIsChangeChannelsModalOpen(false)}
+        textChannels={textChannels}
+        voiceChannels={voiceChannels}
+        onCreateChannel={onCreateChannel}
+        onRenameChannel={onRenameChannel}
+        onDeleteChannel={onDeleteChannel}
+      />
     </div>
   );
 }

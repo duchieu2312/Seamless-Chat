@@ -79,12 +79,10 @@ axiosInstance.interceptors.response.use(
       } catch (refreshError) {
         // If refresh token also expired, force logout the user
         processQueue(refreshError);
-        localStorage.removeItem("user");
-        toast.error("Session expired. Please sign in again.");
 
-        setTimeout(() => {
-          window.location.href = "/";
-        }, 1000);
+        localStorage.clear();
+        localStorage.setItem("sessionExpired", "true");
+        window.location.href = "/";
 
         return Promise.reject(refreshError);
       } finally {

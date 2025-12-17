@@ -3,7 +3,30 @@ import { getIO } from "../socket.js";
 
 export const getDirectMessages = async (req, res) => {
   try {
+    const userId = req.user.id;
     const { conversationId } = req.params;
+
+    const cleanConversationId = Number(conversationId);
+
+    if (!Number.isInteger(cleanConversationId) || cleanConversationId <= 0) {
+      return res
+        .status(400)
+        .json({ message: "Invalid conversation ID format" });
+    }
+
+    const permission = await pool.query(
+      `SELECT 1
+       FROM conversations
+       WHERE id = $2
+       AND (user_one_id = $1 OR user_two_id = $1)`,
+      [userId, cleanConversationId],
+    );
+
+    if (permission.rowCount === 0) {
+      return res.status(403).json({
+        message: "You do not have permission to access this conversation.",
+      });
+    }
 
     const limit = Math.min(Number(req.query.limit) || 20, 30);
     const beforeTime = req.query.beforeTime || null;
@@ -36,10 +59,11 @@ export const getDirectMessages = async (req, res) => {
 
     const params =
       beforeTime && beforeId
-        ? [conversationId, beforeTime, beforeId, limit + 1]
-        : [conversationId, limit + 1];
+        ? [cleanConversationId, beforeTime, beforeId, limit + 1]
+        : [cleanConversationId, limit + 1];
 
     const result = await pool.query(query, params);
+
     const hasMore = result.rows.length > limit;
     const messages = result.rows.slice(0, limit).reverse();
 
@@ -48,8 +72,8 @@ export const getDirectMessages = async (req, res) => {
       hasMore,
     });
   } catch (err) {
-    console.error("Error fetching conversation messages:", err);
-    res.status(500).json({ message: "Failed to fetch conversation messages." });
+    console.error("Error inside getDirectMessages controller:", err);
+    return res.sendStatus(500);
   }
 };
 
@@ -67,7 +91,7 @@ export async function sendDMMessage(req, res) {
 
     const cleanConversationId = Number(conversationId);
 
-    if (isNaN(cleanConversationId)) {
+    if (!Number.isInteger(cleanConversationId) || cleanConversationId <= 0) {
       return res
         .status(400)
         .json({ message: "Invalid conversation ID format" });
@@ -147,8 +171,8 @@ export async function sendDMMessage(req, res) {
       client.release();
     }
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: err.message });
+    console.error("Error inside sendDMMessage controller:", err);
+    return res.sendStatus(500);
   }
 }
 
@@ -158,13 +182,13 @@ export async function updateDmLastSeen(req, res) {
     const { conversationId } = req.params;
     const cleanConversationId = Number(conversationId);
 
-    if (isNaN(cleanConversationId)) {
+    if (!Number.isInteger(cleanConversationId) || cleanConversationId <= 0) {
       return res
         .status(400)
         .json({ message: "Invalid conversation ID format" });
     }
 
-    await pool.query(
+    const result = await pool.query(
       `UPDATE conversations
        SET
          user_one_last_read = CASE
@@ -181,16 +205,43 @@ export async function updateDmLastSeen(req, res) {
       [cleanConversationId, userId],
     );
 
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Conversation not found." });
+    }
+
     return res.json({ success: true });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: err.message });
+    console.error("Error inside updateDmLastSeen controller:", err);
+    return res.sendStatus(500);
   }
 }
 
 export const getChannelMessages = async (req, res) => {
   try {
+    const userId = req.user.id;
     const { channelId } = req.params;
+
+    const cleanChannelId = Number(channelId);
+
+    if (!Number.isInteger(cleanChannelId) || cleanChannelId <= 0) {
+      return res.status(400).json({ message: "Invalid channel ID format" });
+    }
+
+    const permission = await pool.query(
+      `SELECT 1
+       FROM server_members sm
+       JOIN channels c
+         ON c.server_id = sm.server_id
+       WHERE sm.member_id = $1
+         AND c.id = $2`,
+      [userId, cleanChannelId],
+    );
+
+    if (permission.rowCount === 0) {
+      return res.status(403).json({
+        message: "You do not have permission to access this channel.",
+      });
+    }
 
     const limit = Math.min(Number(req.query.limit) || 20, 30);
     const beforeTime = req.query.beforeTime || null;
@@ -223,10 +274,11 @@ export const getChannelMessages = async (req, res) => {
 
     const params =
       beforeTime && beforeId
-        ? [channelId, beforeTime, beforeId, limit + 1]
-        : [channelId, limit + 1];
+        ? [cleanChannelId, beforeTime, beforeId, limit + 1]
+        : [cleanChannelId, limit + 1];
 
     const result = await pool.query(query, params);
+
     const hasMore = result.rows.length > limit;
     const messages = result.rows.slice(0, limit).reverse();
 
@@ -235,8 +287,8 @@ export const getChannelMessages = async (req, res) => {
       hasMore,
     });
   } catch (err) {
-    console.error("Error fetching channel messages:", err);
-    res.status(500).json({ message: "Failed to fetch channel messages." });
+    console.error("Error inside getChannelMessages controller:", err);
+    return res.sendStatus(500);
   }
 };
 
@@ -244,6 +296,7 @@ export async function sendChannelMessage(req, res) {
   try {
     const userId = req.user.id;
     const { channelId, message } = req.body;
+
     const cleanMessage = message?.trim();
 
     if (!cleanMessage) {
@@ -254,7 +307,7 @@ export async function sendChannelMessage(req, res) {
 
     const cleanChannelId = Number(channelId);
 
-    if (isNaN(cleanChannelId)) {
+    if (!Number.isInteger(cleanChannelId) || cleanChannelId <= 0) {
       return res.status(400).json({ message: "Invalid channel ID format" });
     }
 
@@ -321,9 +374,8 @@ export async function sendChannelMessage(req, res) {
 
     return res.status(201).json(newMessage);
   } catch (err) {
-    return res.status(500).json({
-      message: err.message,
-    });
+    console.error("Error inside sendChannelMessage controller:", err);
+    return res.sendStatus(500);
   }
 }
 
@@ -331,10 +383,27 @@ export async function updateChannelLastSeen(req, res) {
   try {
     const userId = req.user.id;
     const { channelId } = req.params;
+
     const cleanChannelId = Number(channelId);
 
-    if (isNaN(cleanChannelId)) {
+    if (!Number.isInteger(cleanChannelId) || cleanChannelId <= 0) {
       return res.status(400).json({ message: "Invalid channel ID format" });
+    }
+
+    const permission = await pool.query(
+      `SELECT 1
+       FROM server_members sm
+       JOIN channels c
+         ON c.server_id = sm.server_id
+       WHERE sm.member_id = $1
+         AND c.id = $2`,
+      [userId, cleanChannelId],
+    );
+
+    if (permission.rowCount === 0) {
+      return res.status(403).json({
+        message: "You do not have permission to access this channel.",
+      });
     }
 
     await pool.query(
@@ -347,6 +416,7 @@ export async function updateChannelLastSeen(req, res) {
 
     return res.json({ success: true });
   } catch (err) {
-    return res.status(500).json({ message: err.message });
+    console.error("Error inside updateChannelLastSeen controller:", err);
+    return res.sendStatus(500);
   }
 }

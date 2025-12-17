@@ -9,29 +9,33 @@ function CreateServerModal({ isOpen, onClose, onCreateServer }) {
   const [description, setDescription] = useState("");
   const [isPublic, setIsPublic] = useState(true);
   const [nameError, setNameError] = useState(false);
-  const [creatingServer, setCreatingServer] = useState(false);
+  const [processing, setProcessing] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     const cleanName = serverName.trim();
 
-    if (!cleanName || creatingServer) return;
+    if (!cleanName || processing) return;
 
     setNameError(false);
-    setCreatingServer(true);
+    setProcessing(true);
 
     try {
       if (onCreateServer) {
-        const success = await onCreateServer({
+        const result = await onCreateServer({
           name: cleanName,
           iconUrl: null,
           description: description.trim() || null,
           isPublic,
         });
 
-        if (!success) {
+        if (result === "NAME_TAKEN") {
           setNameError(true);
+          return;
+        }
+
+        if (!result) {
           return;
         }
       }
@@ -43,7 +47,7 @@ function CreateServerModal({ isOpen, onClose, onCreateServer }) {
 
       onClose();
     } finally {
-      setCreatingServer(false);
+      setProcessing(false);
     }
   };
 
@@ -56,7 +60,7 @@ function CreateServerModal({ isOpen, onClose, onCreateServer }) {
   };
 
   const handleClose = () => {
-    if (creatingServer) return;
+    if (processing) return;
 
     setServerName("");
     setDescription("");
@@ -91,7 +95,7 @@ function CreateServerModal({ isOpen, onClose, onCreateServer }) {
             {/* Close Button Anchor */}
             <button
               onClick={handleClose}
-              disabled={creatingServer}
+              disabled={processing}
               className="absolute top-4 right-4 p-1.5 hover:bg-white/5 rounded-lg text-gray-400 hover:text-white transition-colors disabled:opacity-50"
               title="Close"
             >
@@ -122,7 +126,7 @@ function CreateServerModal({ isOpen, onClose, onCreateServer }) {
                   value={serverName}
                   onChange={handleNameChange}
                   placeholder="e.g. Cool Server"
-                  disabled={creatingServer}
+                  disabled={processing}
                   className={`w-full px-4 py-2.5 rounded-xl bg-black/20 border text-white focus:outline-none transition-all text-sm placeholder:text-gray-600 ${
                     nameError
                       ? "border-red-500 focus:border-red-500"
@@ -145,7 +149,7 @@ function CreateServerModal({ isOpen, onClose, onCreateServer }) {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="What is this server about?"
-                  disabled={creatingServer}
+                  disabled={processing}
                   rows={3}
                   className="w-full px-4 py-2.5 rounded-xl bg-black/20 border border-white/10 text-white focus:border-indigo-500/50 focus:outline-none transition-all text-sm placeholder:text-gray-600 resize-none"
                 />
@@ -166,7 +170,7 @@ function CreateServerModal({ isOpen, onClose, onCreateServer }) {
                   role="switch"
                   aria-checked={isPublic}
                   onClick={() => setIsPublic((prev) => !prev)}
-                  disabled={creatingServer}
+                  disabled={processing}
                   className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${
                     isPublic ? "bg-indigo-500" : "bg-gray-600"
                   }`}
@@ -184,17 +188,17 @@ function CreateServerModal({ isOpen, onClose, onCreateServer }) {
                 <button
                   type="button"
                   onClick={handleClose}
-                  disabled={creatingServer}
+                  disabled={processing}
                   className="px-4 py-2 text-sm font-semibold text-gray-400 hover:text-white transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={!serverName.trim() || creatingServer}
+                  disabled={!serverName.trim() || processing}
                   className="px-5 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 disabled:hover:bg-indigo-500 disabled:cursor-not-allowed font-semibold text-white text-sm transition-all shadow-md shadow-indigo-500/10"
                 >
-                  {creatingServer ? "Creating..." : "Create"}
+                  {processing ? "Creating..." : "Create"}
                 </button>
               </div>
             </form>

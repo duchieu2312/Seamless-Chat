@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import logo from "../../assets/logo.svg";
+import logo from "../../assets/Logo.svg";
 
 const HOME_STEPS = [
   {

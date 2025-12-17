@@ -10,7 +10,7 @@ import ChatArea from "../components/app/ChatArea";
 import HomeView from "../components/app/HomeView";
 import PeopleView from "../components/app/PeopleView";
 import CommunityView from "../components/app/CommunityView";
-import ConfirmModal from "../components/app/ConfirmModal";
+import ConfirmModal from "../components/app/Modals/ConfirmModal";
 import { io } from "socket.io-client";
 
 // Deterministic avatar color picker based on username
@@ -119,26 +119,26 @@ export default function App() {
     friend: null,
   });
 
-  // Synchronize dynamic people search reference for Socket listeners securely
+  // Keep latest values available to Socket.io listeners
   const peopleSearchRef = useRef(peopleSearch);
+  const activeServerRef = useRef(activeServer);
+  const activeChannelRef = useRef(activeChannel);
+  const activeDMRef = useRef(activeDM);
+  const channelReadTimerRef = useRef(null);
+  const dmReadTimerRef = useRef(null);
+
   useEffect(() => {
     peopleSearchRef.current = peopleSearch;
   }, [peopleSearch]);
 
-  // Synchronize dynamic server reference for Socket listeners securely
-  const activeServerRef = useRef(activeServer);
   useEffect(() => {
     activeServerRef.current = activeServer;
   }, [activeServer]);
 
-  // Synchronize dynamic channel reference for Socket listeners securely
-  const activeChannelRef = useRef(activeChannel);
   useEffect(() => {
     activeChannelRef.current = activeChannel;
   }, [activeChannel]);
 
-  // Synchronize dynamic DM reference for Socket listeners securely
-  const activeDMRef = useRef(activeDM);
   useEffect(() => {
     activeDMRef.current = activeDM;
   }, [activeDM]);
@@ -159,7 +159,57 @@ export default function App() {
         localStorage.setItem("last_active_server", defaultServerId);
       }
     } catch (err) {
-      console.error("Failed to fetch joined servers:", err);
+      toast.error(
+        err.response?.data?.message || `Failed to fetch joined servers`,
+      );
+    }
+  }, []);
+
+  const fetchServerChannels = useCallback(async (serverId) => {
+    try {
+      const response = await axiosInstance.get(`/servers/${serverId}/channels`);
+
+      const text = response.data.filter((c) => c.type === "text");
+      const voice = response.data.filter((c) => c.type === "voice");
+
+      setVoiceChannels(voice);
+
+      // Clear unread state and sync read marker for the auto-selected channel
+      setServerHistory((prevHistory) => {
+        if (!text.length) {
+          setTextChannels([]);
+          setActiveChannel(null);
+
+          return {
+            ...prevHistory,
+            [serverId]: null,
+          };
+        }
+
+        const historicalChannelId = prevHistory[serverId];
+
+        const historyExists = text.some(
+          (channel) => Number(channel.id) === Number(historicalChannelId),
+        );
+
+        const targetId = historyExists ? historicalChannelId : text[0].id;
+
+        const updatedText = text.map((channel) =>
+          Number(channel.id) === Number(targetId)
+            ? { ...channel, unread: 0 }
+            : channel,
+        );
+
+        setTextChannels(updatedText);
+        setActiveChannel(targetId);
+
+        return {
+          ...prevHistory,
+          [serverId]: targetId,
+        };
+      });
+    } catch (err) {
+      toast.error(err.response?.data?.message || `Failed to fetch channels`);
     }
   }, []);
 
@@ -168,7 +218,7 @@ export default function App() {
       const res = await axiosInstance.get(`/servers/${serverId}/members`);
       setServerMembers(res.data);
     } catch (err) {
-      console.error("Failed to fetch members:", err);
+      toast.error(err.response?.data?.message || `Failed to fetch members`);
     }
   }, []);
 
@@ -220,7 +270,7 @@ export default function App() {
           [type]: res.data.total,
         }));
       } catch (err) {
-        console.error(`Error fetching ${type}:`, err);
+        toast.error(err.response?.data?.message || `Failed to fetch ${type}`);
       } finally {
         setPeopleLoading((prev) => ({
           ...prev,
@@ -252,8 +302,6 @@ export default function App() {
         setConversationsPage(page);
         setConversationsHasMore(hasMore);
       } catch (err) {
-        console.error("Error fetching conversations:", err);
-
         toast.error(
           err.response?.data?.message || "Failed to load conversations",
         );
@@ -286,7 +334,7 @@ export default function App() {
         setCommunityPage(page);
         setCommunityHasMore(hasMore);
       } catch (err) {
-        console.error("Error fetching communities:", err);
+        console.error("Error fetch communities:", err);
 
         toast.error(
           err.response?.data?.message || "Failed to load communities",
@@ -296,6 +344,50 @@ export default function App() {
       }
     },
     [],
+  );
+
+  const markChannelAsRead = useCallback(async (channelId) => {
+    try {
+      await axiosInstance.post(`/channels/${channelId}/last_read`);
+    } catch (err) {
+      toast.error(
+        err.response?.data?.message || "Failed to sync channel last read",
+      );
+    }
+  }, []);
+
+  const markChannelAsReadDebounced = useCallback(
+    (channelId) => {
+      clearTimeout(channelReadTimerRef.current);
+
+      channelReadTimerRef.current = setTimeout(() => {
+        if (Number(activeChannelRef.current) !== Number(channelId)) return;
+
+        markChannelAsRead(channelId);
+      }, 400);
+    },
+    [markChannelAsRead],
+  );
+
+  const markDMAsRead = useCallback(async (conversationId) => {
+    try {
+      await axiosInstance.post(`/conversations/${conversationId}/last_read`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to sync DM last read");
+    }
+  }, []);
+
+  const markDMAsReadDebounced = useCallback(
+    (conversationId) => {
+      clearTimeout(dmReadTimerRef.current);
+
+      dmReadTimerRef.current = setTimeout(() => {
+        if (Number(activeDMRef.current) !== Number(conversationId)) return;
+
+        markDMAsRead(conversationId);
+      }, 400);
+    },
+    [markDMAsRead],
   );
 
   // Fetch initial application data after user authentication
@@ -333,6 +425,10 @@ export default function App() {
           ...prev,
           [conversationId]: [...(prev[conversationId] || []), incomingMsg],
         }));
+
+        if (conversationId === Number(activeDMRef.current)) {
+          markDMAsReadDebounced(conversationId);
+        }
       } else if (roomId.startsWith("channel_")) {
         const channelId = Number(roomId.replace("channel_", ""));
 
@@ -340,6 +436,10 @@ export default function App() {
           ...prev,
           [channelId]: [...(prev[channelId] || []), incomingMsg],
         }));
+
+        if (channelId === Number(activeChannelRef.current)) {
+          markChannelAsReadDebounced(channelId);
+        }
       }
     });
 
@@ -396,6 +496,10 @@ export default function App() {
       );
     });
 
+    socketRef.current.on("conversations_updated", () => {
+      fetchConversations();
+    });
+
     socketRef.current.on("friends_updated", () => {
       fetchPeople("friends", 1, peopleSearchRef.current.friends, false);
     });
@@ -409,12 +513,21 @@ export default function App() {
     });
 
     socketRef.current.on("servers_updated", () => {
+      fetchJoinedServers();
+    });
+
+    socketRef.current.on("communities_updated", () => {
       fetchCommunities({
         page: 1,
         search: "",
         append: false,
       });
-      fetchJoinedServers();
+    });
+
+    socketRef.current.on("server_channels_updated", ({ serverId }) => {
+      if (Number(serverId) === Number(activeServerRef.current)) {
+        fetchServerChannels(serverId);
+      }
     });
 
     socketRef.current.on("server_members_updated", ({ serverId }) => {
@@ -430,11 +543,14 @@ export default function App() {
     };
   }, [
     user,
-    peopleSearchRef,
-    fetchCommunities,
-    fetchJoinedServers,
+    fetchConversations,
     fetchPeople,
+    fetchJoinedServers,
+    fetchCommunities,
+    fetchServerChannels,
     fetchServerMembers,
+    markDMAsReadDebounced,
+    markChannelAsReadDebounced,
   ]);
 
   // Join or leave specific Socket rooms when changing active server
@@ -482,55 +598,9 @@ export default function App() {
   useEffect(() => {
     if (!activeServer) return;
 
-    const fetchServerDetails = async () => {
-      try {
-        const [channelsRes, membersRes] = await Promise.all([
-          axiosInstance.get(`/servers/${activeServer}/channels`),
-          axiosInstance.get(`/servers/${activeServer}/members`),
-        ]);
-
-        const text = channelsRes.data.filter((c) => c.type === "text");
-        const voice = channelsRes.data.filter((c) => c.type === "voice");
-
-        setVoiceChannels(voice);
-        setServerMembers(membersRes.data);
-
-        setServerHistory((prevHistory) => {
-          const historicalChannelId = prevHistory[activeServer];
-
-          const historyExists = text.some(
-            (channel) => Number(channel.id) === Number(historicalChannelId),
-          );
-
-          const targetId = historyExists ? historicalChannelId : text[0].id;
-
-          const updatedText = text.map((channel) =>
-            Number(channel.id) === Number(targetId)
-              ? { ...channel, unread: 0 }
-              : channel,
-          );
-
-          setTextChannels(updatedText);
-          setActiveChannel(targetId);
-
-          axiosInstance
-            .post(`/channels/${targetId}/last_read`)
-            .catch((err) =>
-              console.error("Error updating last read position:", err),
-            );
-
-          return {
-            ...prevHistory,
-            [activeServer]: targetId,
-          };
-        });
-      } catch (err) {
-        console.error("Error fetching server infrastructure details:", err);
-      }
-    };
-
-    fetchServerDetails();
-  }, [activeServer]);
+    fetchServerChannels(activeServer);
+    fetchServerMembers(activeServer);
+  }, [activeServer, fetchServerChannels, fetchServerMembers]);
 
   // Sync chat message logs whenever the active text channel changes
   useEffect(() => {
@@ -557,7 +627,10 @@ export default function App() {
           [activeChannel]: res.data.hasMore,
         }));
       } catch (err) {
-        console.error("Error fetching channel message history:", err);
+        toast.error(
+          err.response?.data?.message ||
+            "Failed to fetch channel message history.",
+        );
       }
     };
 
@@ -574,28 +647,8 @@ export default function App() {
       ),
     );
 
-    const updateLastRead = () => {
-      axiosInstance
-        .post(`/channels/${activeChannel}/last_read`)
-        .catch((err) =>
-          console.error("Error updating last read position:", err),
-        );
-    };
-
-    updateLastRead();
-
-    // Ensure read status markers are synced even if user closes the tab abruptly
-    const handleBeforeUnload = () => {
-      updateLastRead();
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      updateLastRead();
-    };
-  }, [activeChannel]);
+    markChannelAsRead(activeChannel);
+  }, [activeChannel, markChannelAsRead]);
 
   // Sync private direct message records when switching direct message conversations
   useEffect(() => {
@@ -622,12 +675,14 @@ export default function App() {
           [activeDM]: res.data.hasMore,
         }));
       } catch (err) {
-        console.error("Error fetching DM message history:", err);
+        toast.error(
+          err.response?.data?.message || "Failed to fetch DM message history.",
+        );
       }
     };
 
     fetchDmMessages();
-  }, [activeDM, user]);
+  }, [activeDM]);
 
   // Reset client side DM notifications and sync read markers with server database
   useEffect(() => {
@@ -644,26 +699,8 @@ export default function App() {
       ),
     );
 
-    const updateLastRead = () => {
-      axiosInstance
-        .post(`/conversations/${activeDM}/last_read`)
-        .catch(console.error);
-    };
-
-    updateLastRead();
-
-    // Ensure read status markers are synced even if user closes the tab abruptly
-    const handleBeforeUnload = () => {
-      updateLastRead();
-    };
-
-    window.addEventListener("beforeunload", handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      updateLastRead();
-    };
-  }, [activeDM]);
+    markDMAsRead(activeDM);
+  }, [activeDM, markDMAsRead]);
 
   // Debounce community search to avoid sending a request on every keystroke
   useEffect(() => {
@@ -727,11 +764,11 @@ export default function App() {
     [activeServer],
   );
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
       await axiosInstance.post("/auth/logout");
     } catch (err) {
-      toast.error(`Logout failed: ${err}`);
+      toast.error(err.response?.data?.message || "Failed to logout.");
     } finally {
       if (socketRef.current) {
         socketRef.current.disconnect();
@@ -740,21 +777,30 @@ export default function App() {
       localStorage.clear();
       window.location.href = "/";
     }
-  };
+  }, []);
 
   const handleJoinVoice = useCallback((channelId) => {
     toast.info(`Joining voice channel... ${channelId}`);
   }, []);
 
-  // Messages Action Events
-  const handleSendChannelMessage = async (e, message) => {
-    e.preventDefault();
-    if (!message.trim() || !activeChannel) return;
-    await axiosInstance.post("/channels/send_messages", {
-      channelId: activeChannel,
-      message: message,
-    });
-  };
+  // Message Action Events
+  const handleSendChannelMessage = useCallback(
+    async (e, message) => {
+      e.preventDefault();
+      if (!message.trim() || !activeChannel) return;
+      try {
+        await axiosInstance.post("/channels/send_messages", {
+          channelId: activeChannel,
+          message: message,
+        });
+      } catch (err) {
+        toast.error(
+          err.response?.data?.message || "Failed to send channel message.",
+        );
+      }
+    },
+    [activeChannel],
+  );
 
   const handleLoadMoreChannelMessages = useCallback(async () => {
     if (!activeChannel || loadingMoreChannel) return;
@@ -784,20 +830,32 @@ export default function App() {
         [activeChannel]: res.data.hasMore,
       }));
     } catch (err) {
-      console.error("Error loading older channel messages:", err);
+      toast.error(
+        err.response?.data?.message ||
+          "Failed to loading older channel messages.",
+      );
     } finally {
       setLoadingMoreChannel(false);
     }
   }, [activeChannel, channelMessages, loadingMoreChannel]);
 
-  const handleSendDM = async (e, message) => {
-    e.preventDefault();
-    if (!message.trim() || !activeDM) return;
-    await axiosInstance.post("/conversations/send_messages", {
-      conversationId: activeDM,
-      message: message,
-    });
-  };
+  const handleSendDM = useCallback(
+    async (e, message) => {
+      e.preventDefault();
+      if (!message.trim() || !activeDM) return;
+      try {
+        await axiosInstance.post("/conversations/send_messages", {
+          conversationId: activeDM,
+          message: message,
+        });
+      } catch (err) {
+        toast.error(
+          err.response?.data?.message || "Failed to send DM message.",
+        );
+      }
+    },
+    [activeDM],
+  );
 
   const handleLoadMoreDMMessages = useCallback(async () => {
     if (!activeDM || loadingMoreDM) return;
@@ -827,7 +885,9 @@ export default function App() {
         [activeDM]: res.data.hasMore,
       }));
     } catch (err) {
-      console.error("Error loading older DM messages:", err);
+      toast.error(
+        err.response?.data?.message || "Failed to loading older DM messages.",
+      );
     } finally {
       setLoadingMoreDM(false);
     }
@@ -882,7 +942,7 @@ export default function App() {
     [fetchPeople],
   );
 
-  const handleSendFriendRequest = async (targetUser) => {
+  const handleSendFriendRequest = useCallback(async (targetUser) => {
     try {
       await axiosInstance.post("/users/friends/request", { targetUser });
       toast.success(`Sent friend request to ${targetUser}`);
@@ -891,21 +951,13 @@ export default function App() {
         err.response?.data?.message || "Failed to send friend request.",
       );
     }
-  };
+  }, []);
 
-  const handleAcceptFriendRequest = async (targetUser) => {
+  const handleAcceptFriendRequest = useCallback(async (targetUser) => {
     try {
-      const response = await axiosInstance.post(
-        `/users/friends/accept/${targetUser.id}`,
-      );
+      await axiosInstance.post(`/users/friends/accept/${targetUser.id}`);
 
-      await Promise.all([
-        fetchPeople("friends", 1, peopleSearch.friends),
-        fetchPeople("pending", 1, peopleSearch.pending),
-        fetchConversations(),
-      ]);
-
-      toast.success(response.data?.message || "Accepted friend request.");
+      toast.success(`Accepted friend request from ${targetUser.username}`);
 
       return true;
     } catch (err) {
@@ -915,20 +967,13 @@ export default function App() {
 
       return false;
     }
-  };
+  }, []);
 
-  const handleDeclineFriendRequest = async (targetUser) => {
+  const handleDeclineFriendRequest = useCallback(async (targetUser) => {
     try {
-      const response = await axiosInstance.delete(
-        `/users/friends/decline/${targetUser.id}`,
-      );
+      await axiosInstance.delete(`/users/friends/decline/${targetUser.id}`);
 
-      fetchPeople("pending", 1, peopleSearch.pending);
-
-      toast.success(
-        response.data?.message ||
-          `Declined friend request from ${targetUser.username}`,
-      );
+      toast.success(`Declined friend request from ${targetUser.username}`);
 
       return true;
     } catch (err) {
@@ -938,17 +983,11 @@ export default function App() {
 
       return false;
     }
-  };
+  }, []);
 
-  const handleBlock = async (targetUser) => {
+  const handleBlock = useCallback(async (targetUser) => {
     try {
       await axiosInstance.post(`/users/friends/block/${targetUser.id}`);
-
-      await Promise.all([
-        fetchPeople("friends", 1, peopleSearch.friends),
-        fetchPeople("blocked", 1, peopleSearch.blocked),
-        fetchConversations(),
-      ]);
 
       setActiveDM(null);
 
@@ -956,20 +995,15 @@ export default function App() {
 
       return true;
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to block user.");
+      toast.error(err.response?.data?.message || "Failed to block.");
 
       return false;
     }
-  };
+  }, []);
 
-  const handleUnfriend = async (targetUser) => {
+  const handleUnfriend = useCallback(async (targetUser) => {
     try {
       await axiosInstance.delete(`/users/friends/unfriend/${targetUser.id}`);
-
-      await Promise.all([
-        fetchPeople("friends", 1, peopleSearch.friends),
-        fetchConversations(),
-      ]);
 
       setActiveDM(null);
 
@@ -981,23 +1015,21 @@ export default function App() {
 
       return false;
     }
-  };
+  }, []);
 
-  const handleUnblock = async (targetUser) => {
+  const handleUnblock = useCallback(async (targetUser) => {
     try {
       await axiosInstance.delete(`/users/friends/unblock/${targetUser.id}`);
-
-      fetchPeople("blocked", 1, peopleSearch.blocked);
 
       toast.success(`Unblocked ${targetUser.username}`);
 
       return true;
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to unblock user.");
+      toast.error(err.response?.data?.message || "Failed to unblock.");
 
       return false;
     }
-  };
+  }, []);
 
   // Server Action Events
   const handleLoadMoreCommunities = useCallback(() => {
@@ -1016,18 +1048,9 @@ export default function App() {
     communitySearch,
   ]);
 
-  const handleJoinServer = async (serverId) => {
+  const handleJoinServer = useCallback(async (serverId) => {
     try {
       const response = await axiosInstance.post(`/servers/${serverId}/join`);
-
-      await Promise.all([
-        fetchJoinedServers(),
-        fetchCommunities({
-          page: 1,
-          search: communitySearch,
-          append: false,
-        }),
-      ]);
 
       setCurrentSpace("SERVER");
       setActiveServer(serverId);
@@ -1039,42 +1062,74 @@ export default function App() {
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to join server.");
     }
-  };
+  }, []);
 
-  const handleJoinPrivateServer = async (code) => {
+  const handleJoinServerByCode = useCallback(async (code) => {
     try {
-      await axiosInstance.post("/servers/joinServerByCode", { code });
+      const response = await axiosInstance.post("/servers/joinServerByCode", {
+        code,
+      });
 
-      await fetchJoinedServers();
+      const { serverId } = response.data;
+
+      setCurrentSpace("SERVER");
+      setActiveServer(serverId);
+
+      localStorage.setItem("last_current_space", "SERVER");
+      localStorage.setItem("last_active_server", serverId);
 
       toast.success("Joined server successfully.");
 
       return true;
     } catch (err) {
       toast.error(
-        err.response?.data?.message || "Failed to join private server.",
+        err.response?.data?.message || "Failed to join server by code.",
       );
 
       return false;
     }
-  };
+  }, []);
 
-  const handleLeaveServer = async () => {
+  const handleChangeServerDetails = useCallback(
+    async (serverData) => {
+      if (!activeServer) return false;
+
+      try {
+        const response = await axiosInstance.put(
+          `/servers/${activeServer}/changeDetails`,
+          serverData,
+        );
+
+        setServers((prev) =>
+          prev.map((server) =>
+            server.id === activeServer
+              ? { ...server, ...response.data.server }
+              : server,
+          ),
+        );
+
+        toast.success("Server details updated successfully.");
+        return true;
+      } catch (err) {
+        if (err.response?.data?.code === "NAME_TAKEN") {
+          return "NAME_TAKEN";
+        }
+        toast.error(
+          err.response?.data?.message || "Failed to update server details.",
+        );
+        return false;
+      }
+    },
+    [activeServer],
+  );
+
+  const handleLeaveServer = useCallback(async () => {
     if (!activeServer) return;
 
     try {
       const response = await axiosInstance.delete(
         `/servers/${activeServer}/leave`,
       );
-
-      await Promise.all([
-        fetchJoinedServers(),
-        fetchCommunities({
-          page: 1,
-          search: communitySearch,
-          append: false,
-        }),
-      ]);
 
       setCurrentSpace("HOME");
       setActiveServer(null);
@@ -1094,25 +1149,10 @@ export default function App() {
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to leave server.");
     }
-  };
+  }, [activeServer]);
 
-  const handleCreateServer = async (newServerData) => {
+  const handleCreateServer = useCallback(async (newServerData) => {
     try {
-      const checkResponse = await axiosInstance.get(
-        "/servers/checkServerName",
-        {
-          params: {
-            name: newServerData.name,
-          },
-        },
-      );
-
-      if (checkResponse.data.exists) {
-        toast.error(`Server name "${newServerData.name}" already exists.`);
-
-        return false;
-      }
-
       const response = await axiosInstance.post(
         "/servers/createServer",
         newServerData,
@@ -1135,10 +1175,79 @@ export default function App() {
       toast.success(`Server "${newServerData.name}" created successfully!`);
       return true;
     } catch (err) {
+      if (err.response?.data?.code === "NAME_TAKEN") {
+        return "NAME_TAKEN";
+      }
       toast.error(err.response?.data?.message || "Failed to create server");
       return false;
     }
-  };
+  }, []);
+
+  // Channel Action Events
+  const handleCreateChannel = useCallback(
+    async (type, name) => {
+      if (!activeServer) return false;
+
+      try {
+        await axiosInstance.post(`/servers/${activeServer}/channels/create`, {
+          name,
+          type,
+        });
+
+        toast.success("Channel created successfully.");
+
+        return true;
+      } catch (err) {
+        toast.error(err.response?.data?.message || "Failed to create channel.");
+
+        return false;
+      }
+    },
+    [activeServer],
+  );
+
+  const handleRenameChannel = useCallback(
+    async (channelId, name) => {
+      if (!activeServer || !channelId) return false;
+
+      try {
+        await axiosInstance.put(
+          `/servers/${activeServer}/channels/${channelId}`,
+          { name },
+        );
+
+        toast.success("Channel renamed successfully.");
+
+        return true;
+      } catch (err) {
+        toast.error(err.response?.data?.message || "Failed to rename channel.");
+
+        return false;
+      }
+    },
+    [activeServer],
+  );
+
+  const handleDeleteChannel = useCallback(
+    async (channelId) => {
+      if (!activeServer || !channelId) return false;
+
+      try {
+        await axiosInstance.delete(
+          `/servers/${activeServer}/channels/${channelId}`,
+        );
+
+        toast.success("Channel deleted successfully.");
+
+        return true;
+      } catch (err) {
+        toast.error(err.response?.data?.message || "Failed to delete channel.");
+
+        return false;
+      }
+    },
+    [activeServer],
+  );
 
   // ==========================================
   // PERFORMANCE MEMOIZED DATA FILTERS
@@ -1161,6 +1270,11 @@ export default function App() {
     return { owners, standardMembers, totalCount: serverMembers.length };
   }, [serverMembers]);
 
+  const activeServerData = useMemo(
+    () => servers.find((s) => Number(s.id) === Number(activeServer)),
+    [servers, activeServer],
+  );
+
   const activeChannelData = useMemo(
     () => textChannels.find((c) => Number(c.id) === Number(activeChannel)),
     [textChannels, activeChannel],
@@ -1170,6 +1284,7 @@ export default function App() {
     () => conversations.find((c) => Number(c.id) === Number(activeDM)),
     [conversations, activeDM],
   );
+
   // ==========================================
   // DYNAMIC VIEW ROUTER RENDERING
   // ==========================================
@@ -1242,7 +1357,7 @@ export default function App() {
             communities={communities}
             getAvatarColor={getAvatarColor}
             onJoinServer={handleJoinServer}
-            onJoinPrivateServer={handleJoinPrivateServer}
+            onJoinServerByCode={handleJoinServerByCode}
             communitySearch={communitySearch}
             setCommunitySearch={setCommunitySearch}
             onLoadMore={handleLoadMoreCommunities}
@@ -1256,7 +1371,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a] text-gray-100 overflow-hidden serialization-context seamless-scrollbar">
+    <div className="flex h-screen bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a] text-gray-100 overflow-hidden seamless-scrollbar">
       {/* LEFT NAVIGATION COLUMN */}
       <div className="w-[360px] min-w-[360px] max-w-[360px] flex-shrink-0 basis-[360px] flex flex-col min-h-0">
         <div className="flex flex-1 min-h-0 relative">
@@ -1273,7 +1388,7 @@ export default function App() {
             currentSpace={currentSpace}
             activeHomeTab={activeHomeTab}
             onHomeTabClick={handleHomeTabClick}
-            server={servers.find((s) => s.id === activeServer)}
+            server={activeServerData}
             textChannels={filteredTextChannels}
             voiceChannels={filteredVoiceChannels}
             activeChannel={activeChannel}
@@ -1286,6 +1401,10 @@ export default function App() {
             activeDM={activeDM}
             onDMClick={handleDMClick}
             getAvatarColor={getAvatarColor}
+            onChangeServerDetails={handleChangeServerDetails}
+            onCreateChannel={handleCreateChannel}
+            onRenameChannel={handleRenameChannel}
+            onDeleteChannel={handleDeleteChannel}
             onLeaveServer={handleLeaveServer}
           />
         </div>
@@ -1293,6 +1412,7 @@ export default function App() {
           user={user}
           onLogout={handleLogout}
           getAvatarColor={getAvatarColor}
+          onStatusChange
         />
       </div>
 

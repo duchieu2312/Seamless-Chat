@@ -23,8 +23,8 @@ import {
   acceptFriendRequest,
   declineFriendRequest,
   blockUser,
+  unfriendUser,
   unblockUser,
-  unfriend,
 } from "./controllers/userController.js";
 import {
   getCommunities,
@@ -34,7 +34,10 @@ import {
   getJoinedServers,
   getServerChannels,
   getServerMembers,
-  checkServerName,
+  updateServerDetails,
+  createChannel,
+  updateChannelName,
+  deleteChannel,
   createNewServer,
 } from "./controllers/serverController.js";
 import {
@@ -69,8 +72,8 @@ app.post("/api/auth/logout", logoutUser);
 app.post("/api/auth/refresh", refreshLimiter, refreshToken);
 
 // USER ROUTES
-app.get("/api/users/conversations", authenticateToken, getConversations);
 app.get("/api/users/me", authenticateToken, getUserInfo);
+app.get("/api/users/conversations", authenticateToken, getConversations);
 app.get("/api/users/friends", authenticateToken, getFriends);
 app.get("/api/users/friends/pending", authenticateToken, getPendingRequests);
 app.get("/api/users/friends/blocked", authenticateToken, getBlockedUsers);
@@ -87,14 +90,14 @@ app.delete(
 );
 app.post("/api/users/friends/block/:targetId", authenticateToken, blockUser);
 app.delete(
+  "/api/users/friends/unfriend/:targetId",
+  authenticateToken,
+  unfriendUser,
+);
+app.delete(
   "/api/users/friends/unblock/:targetId",
   authenticateToken,
   unblockUser,
-);
-app.delete(
-  "/api/users/friends/unfriend/:targetId",
-  authenticateToken,
-  unfriend,
 );
 
 // SERVER ROUTES
@@ -109,7 +112,26 @@ app.get(
   getServerChannels,
 );
 app.get("/api/servers/:serverId/members", authenticateToken, getServerMembers);
-app.get("/api/servers/checkServerName", authenticateToken, checkServerName);
+app.put(
+  "/api/servers/:serverId/changeDetails",
+  authenticateToken,
+  updateServerDetails,
+);
+app.post(
+  "/api/servers/:serverId/channels/create",
+  authenticateToken,
+  createChannel,
+);
+app.put(
+  "/api/servers/:serverId/channels/:channelId",
+  authenticateToken,
+  updateChannelName,
+);
+app.delete(
+  "/api/servers/:serverId/channels/:channelId",
+  authenticateToken,
+  deleteChannel,
+);
 app.post("/api/servers/createServer", authenticateToken, createNewServer);
 
 // MESSAGE ROUTES

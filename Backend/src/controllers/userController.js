@@ -22,7 +22,8 @@ export async function getUserInfo(req, res) {
       avatarUrl: user.avatarUrl,
     });
   } catch (err) {
-    return res.status(500).json({ message: err.message });
+    console.error("Error inside getUserInfo controller:", err);
+    return res.sendStatus(500);
   }
 }
 
@@ -90,7 +91,7 @@ export async function getConversations(req, res) {
     });
   } catch (err) {
     console.error("Error inside getConversations controller:", err);
-    return res.status(500).json({ message: err.message });
+    return res.sendStatus(500);
   }
 }
 
@@ -145,7 +146,7 @@ export async function getFriends(req, res) {
     });
   } catch (err) {
     console.error("Error inside getFriends controller:", err);
-    return res.status(500).json({ message: err.message });
+    return res.sendStatus(500);
   }
 }
 
@@ -191,7 +192,7 @@ export async function getPendingRequests(req, res) {
     });
   } catch (err) {
     console.error("Error inside getPendingRequests controller:", err);
-    return res.status(500).json({ message: err.message });
+    return res.sendStatus(500);
   }
 }
 
@@ -238,7 +239,7 @@ export async function getBlockedUsers(req, res) {
     });
   } catch (err) {
     console.error("Error inside getBlockedUsers controller:", err);
-    return res.status(500).json({ message: err.message });
+    return res.sendStatus(500);
   }
 }
 
@@ -333,6 +334,15 @@ export async function sendFriendRequest(req, res) {
 
         await client.query("COMMIT");
 
+        const io = getIO();
+
+        io.to(`user_${senderId}`).emit("friends_updated");
+        io.to(`user_${targetId}`).emit("friends_updated");
+        io.to(`user_${senderId}`).emit("pending_updated");
+        io.to(`user_${targetId}`).emit("pending_updated");
+        io.to(`user_${senderId}`).emit("conversations_updated");
+        io.to(`user_${targetId}`).emit("conversations_updated");
+
         return res.json({ message: "Friend request accepted." });
       } catch (err) {
         await client.query("ROLLBACK");
@@ -347,13 +357,15 @@ export async function sendFriendRequest(req, res) {
 
     const io = getIO();
 
+    io.to(`user_${senderId}`).emit("pending_updated");
     io.to(`user_${targetId}`).emit("pending_updated");
 
     return res
       .status(201)
       .json({ message: "Friend request sent successfully." });
   } catch (err) {
-    return res.status(500).json({ message: err.message });
+    console.error("Error inside sendFriendRequest controller:", err);
+    return res.sendStatus(500);
   } finally {
     client.release();
   }
@@ -390,13 +402,11 @@ export async function acceptFriendRequest(req, res) {
 
     const [userOne, userTwo] = [userId, senderId].sort();
 
-    const convRes = await client.query(
+    await client.query(
       `INSERT INTO conversations (user_one_id, user_two_id)
        VALUES ($1, $2)
        ON CONFLICT (user_one_id, user_two_id)
-       DO UPDATE
-       SET user_one_id = conversations.user_one_id
-       RETURNING id`,
+       DO NOTHING`,
       [userOne, userTwo],
     );
 
@@ -406,17 +416,17 @@ export async function acceptFriendRequest(req, res) {
 
     io.to(`user_${userId}`).emit("friends_updated");
     io.to(`user_${senderId}`).emit("friends_updated");
-
     io.to(`user_${userId}`).emit("pending_updated");
     io.to(`user_${senderId}`).emit("pending_updated");
+    io.to(`user_${userId}`).emit("conversations_updated");
+    io.to(`user_${senderId}`).emit("conversations_updated");
 
-    return res.json({
-      message: "Friend request accepted successfully.",
-      conversationId: convRes.rows[0]?.id,
-    });
+    return res.json({ message: "Friend request accepted successfully." });
   } catch (err) {
     await client.query("ROLLBACK");
-    return res.status(500).json({ message: err.message });
+
+    console.error("Error inside acceptFriendRequest controller:", err);
+    return res.sendStatus(500);
   } finally {
     client.release();
   }
@@ -448,7 +458,8 @@ export async function declineFriendRequest(req, res) {
 
     return res.json({ message: "Friend request declined successfully." });
   } catch (err) {
-    return res.status(500).json({ message: err.message });
+    console.error("Error inside declineFriendRequest controller:", err);
+    return res.sendStatus(500);
   }
 }
 
@@ -489,45 +500,23 @@ export async function blockUser(req, res) {
 
     io.to(`user_${userId}`).emit("friends_updated");
     io.to(`user_${targetId}`).emit("friends_updated");
-    io.to(`user_${userId}`).emit("blocked_updated");
     io.to(`user_${userId}`).emit("pending_updated");
     io.to(`user_${targetId}`).emit("pending_updated");
+    io.to(`user_${userId}`).emit("blocked_updated");
+    io.to(`user_${userId}`).emit("conversations_updated");
 
     return res.json({ message: "User has been blocked." });
   } catch (err) {
     await client.query("ROLLBACK");
 
-    return res.status(500).json({ message: err.message });
+    console.error("Error inside blockUser controller:", err);
+    return res.sendStatus(500);
   } finally {
     client.release();
   }
 }
 
-export async function unblockUser(req, res) {
-  try {
-    const userId = req.user.id;
-    const { targetId } = req.params;
-
-    const deleteRes = await pool.query(
-      "DELETE FROM friendships WHERE user_id = $1 AND friend_id = $2 AND status = 'blocked'",
-      [userId, targetId],
-    );
-
-    if (deleteRes.rowCount === 0) {
-      return res.status(404).json({ message: "This user is not blocked." });
-    }
-
-    const io = getIO();
-
-    io.to(`user_${userId}`).emit("blocked_updated");
-
-    return res.json({ message: "User has been unblocked." });
-  } catch (err) {
-    return res.status(500).json({ message: err.message });
-  }
-}
-
-export async function unfriend(req, res) {
+export async function unfriendUser(req, res) {
   try {
     const userId = req.user.id;
     const { targetId } = req.params;
@@ -551,9 +540,36 @@ export async function unfriend(req, res) {
 
     io.to(`user_${userId}`).emit("friends_updated");
     io.to(`user_${targetId}`).emit("friends_updated");
+    io.to(`user_${userId}`).emit("conversations_updated");
 
-    return res.json({ message: "Friend removed successfully." });
+    return res.json({ message: "User has been unfriended." });
   } catch (err) {
-    return res.status(500).json({ message: err.message });
+    console.error("Error inside unfriendUser controller:", err);
+    return res.sendStatus(500);
+  }
+}
+
+export async function unblockUser(req, res) {
+  try {
+    const userId = req.user.id;
+    const { targetId } = req.params;
+
+    const deleteRes = await pool.query(
+      "DELETE FROM friendships WHERE user_id = $1 AND friend_id = $2 AND status = 'blocked'",
+      [userId, targetId],
+    );
+
+    if (deleteRes.rowCount === 0) {
+      return res.status(404).json({ message: "This user is not blocked." });
+    }
+
+    const io = getIO();
+
+    io.to(`user_${userId}`).emit("blocked_updated");
+
+    return res.json({ message: "User has been unblocked." });
+  } catch (err) {
+    console.error("Error inside unblockUser controller:", err);
+    return res.sendStatus(500);
   }
 }
