@@ -83,6 +83,7 @@ export default function App() {
   const [conversationsPage, setConversationsPage] = useState(1);
   const [conversationsHasMore, setConversationsHasMore] = useState(true);
   const [conversationsLoading, setConversationsLoading] = useState(false);
+  const [extraConversation, setExtraConversation] = useState(null);
   const [dmMessages, setDmMessages] = useState({});
   const [dmHasMore, setDmHasMore] = useState({});
   const [loadingMoreDM, setLoadingMoreDM] = useState(false);
@@ -116,7 +117,7 @@ export default function App() {
   const [confirmModal, setConfirmModal] = useState({
     open: false,
     type: "",
-    friend: null,
+    target: null,
   });
 
   // Keep latest values available to Socket.io listeners
@@ -536,6 +537,36 @@ export default function App() {
       }
     });
 
+    socketRef.current.on("server_deleted", ({ serverId }) => {
+      if (Number(serverId) === Number(activeServerRef.current)) {
+        toast.info("This server has been deleted.");
+
+        setCurrentSpace("HOME");
+
+        if (localStorage.getItem("last_active_dm")) {
+          setActiveDM(localStorage.getItem("last_active_dm"));
+        } else {
+          setActiveHomeTab(localStorage.getItem("last_current_home_tab"));
+        }
+
+        setActiveServer(null);
+        setActiveChannel(null);
+        setTextChannels([]);
+        setVoiceChannels([]);
+        setServerMembers([]);
+        setChannelMessages({});
+
+        localStorage.removeItem("last_current_space");
+        localStorage.removeItem("last_active_server");
+
+        setServerHistory((prev) => {
+          const updated = { ...prev };
+          delete updated[serverId];
+          return updated;
+        });
+      }
+    });
+
     return () => {
       if (!socketRef.current) return;
       socketRef.current.disconnect();
@@ -942,52 +973,77 @@ export default function App() {
     [fetchPeople],
   );
 
-  const handleSendFriendRequest = useCallback(async (targetUser) => {
+  const handleSendFriendRequest = useCallback(
+    async (targetUsername, serverId = null) => {
+      try {
+        await axiosInstance.post("/users/friends/request", {
+          targetUsername,
+          serverId,
+        });
+
+        toast.success(`Sent friend request to ${targetUsername}`);
+
+        return true;
+      } catch (err) {
+        toast.error(
+          err.response?.data?.message || "Failed to send friend request.",
+        );
+
+        return false;
+      }
+    },
+    [],
+  );
+
+  const handleAcceptFriendRequest = useCallback(
+    async (targetUser, serverId = null) => {
+      try {
+        await axiosInstance.post(`/users/friends/accept/${targetUser.id}`, {
+          serverId,
+        });
+
+        toast.success(`Accepted friend request from ${targetUser.username}`);
+
+        return true;
+      } catch (err) {
+        toast.error(
+          err.response?.data?.message || "Failed to accept friend request.",
+        );
+
+        return false;
+      }
+    },
+    [],
+  );
+
+  const handleDeclineFriendRequest = useCallback(
+    async (targetUser, serverId = null) => {
+      try {
+        await axiosInstance.delete(`/users/friends/decline/${targetUser.id}`, {
+          data: {
+            serverId,
+          },
+        });
+
+        toast.success(`Declined friend request from ${targetUser.username}`);
+
+        return true;
+      } catch (err) {
+        toast.error(
+          err.response?.data?.message || "Failed to decline friend request.",
+        );
+
+        return false;
+      }
+    },
+    [],
+  );
+
+  const handleBlock = useCallback(async (targetUser, serverId = null) => {
     try {
-      await axiosInstance.post("/users/friends/request", { targetUser });
-      toast.success(`Sent friend request to ${targetUser}`);
-    } catch (err) {
-      toast.error(
-        err.response?.data?.message || "Failed to send friend request.",
-      );
-    }
-  }, []);
-
-  const handleAcceptFriendRequest = useCallback(async (targetUser) => {
-    try {
-      await axiosInstance.post(`/users/friends/accept/${targetUser.id}`);
-
-      toast.success(`Accepted friend request from ${targetUser.username}`);
-
-      return true;
-    } catch (err) {
-      toast.error(
-        err.response?.data?.message || "Failed to accept friend request.",
-      );
-
-      return false;
-    }
-  }, []);
-
-  const handleDeclineFriendRequest = useCallback(async (targetUser) => {
-    try {
-      await axiosInstance.delete(`/users/friends/decline/${targetUser.id}`);
-
-      toast.success(`Declined friend request from ${targetUser.username}`);
-
-      return true;
-    } catch (err) {
-      toast.error(
-        err.response?.data?.message || "Failed to decline friend request.",
-      );
-
-      return false;
-    }
-  }, []);
-
-  const handleBlock = useCallback(async (targetUser) => {
-    try {
-      await axiosInstance.post(`/users/friends/block/${targetUser.id}`);
+      await axiosInstance.post(`/users/friends/block/${targetUser.id}`, {
+        serverId,
+      });
 
       setActiveDM(null);
 
@@ -1001,9 +1057,13 @@ export default function App() {
     }
   }, []);
 
-  const handleUnfriend = useCallback(async (targetUser) => {
+  const handleUnfriend = useCallback(async (targetUser, serverId = null) => {
     try {
-      await axiosInstance.delete(`/users/friends/unfriend/${targetUser.id}`);
+      await axiosInstance.delete(`/users/friends/unfriend/${targetUser.id}`, {
+        data: {
+          serverId,
+        },
+      });
 
       setActiveDM(null);
 
@@ -1017,9 +1077,13 @@ export default function App() {
     }
   }, []);
 
-  const handleUnblock = useCallback(async (targetUser) => {
+  const handleUnblock = useCallback(async (targetUser, serverId = null) => {
     try {
-      await axiosInstance.delete(`/users/friends/unblock/${targetUser.id}`);
+      await axiosInstance.delete(`/users/friends/unblock/${targetUser.id}`, {
+        data: {
+          serverId,
+        },
+      });
 
       toast.success(`Unblocked ${targetUser.username}`);
 
@@ -1030,6 +1094,39 @@ export default function App() {
       return false;
     }
   }, []);
+
+  const handleChatUser = useCallback(
+    async (targetUser) => {
+      try {
+        const conversation = conversations.find(
+          (conversation) =>
+            String(conversation.userId) === String(targetUser.id),
+        );
+
+        if (conversation) {
+          setCurrentSpace("HOME");
+          handleDMClick(conversation.id);
+          return;
+        }
+
+        const response = await axiosInstance.get(
+          `/users/${targetUser.id}/conversation`,
+        );
+
+        const newConversation = response.data;
+
+        setExtraConversation(newConversation);
+
+        setCurrentSpace("HOME");
+        handleDMClick(newConversation.id);
+      } catch (err) {
+        toast.error(
+          err.response?.data?.message || "Failed to open conversation.",
+        );
+      }
+    },
+    [conversations, handleDMClick],
+  );
 
   // Server Action Events
   const handleLoadMoreCommunities = useCallback(() => {
@@ -1109,6 +1206,7 @@ export default function App() {
         );
 
         toast.success("Server details updated successfully.");
+
         return true;
       } catch (err) {
         if (err.response?.data?.code === "NAME_TAKEN") {
@@ -1117,39 +1215,64 @@ export default function App() {
         toast.error(
           err.response?.data?.message || "Failed to update server details.",
         );
+
         return false;
       }
     },
     [activeServer],
   );
 
-  const handleLeaveServer = useCallback(async () => {
-    if (!activeServer) return;
+  const handleDeleteServer = useCallback(async (server) => {
+    try {
+      await axiosInstance.delete(`/servers/${server.id}/delete`);
 
+      toast.success(`Deleted server "${server.name}".`);
+
+      return true;
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to delete server.");
+
+      return false;
+    }
+  }, []);
+
+  const handleLeaveServer = useCallback(async (server) => {
     try {
       const response = await axiosInstance.delete(
-        `/servers/${activeServer}/leave`,
+        `/servers/${server.id}/leave`,
       );
 
       setCurrentSpace("HOME");
+      if (localStorage.getItem("last_active_dm")) {
+        setActiveDM(localStorage.getItem("last_active_dm"));
+      } else {
+        setActiveHomeTab(localStorage.getItem("last_current_home_tab"));
+      }
       setActiveServer(null);
       setActiveChannel(null);
       setTextChannels([]);
       setVoiceChannels([]);
       setServerMembers([]);
       setChannelMessages({});
+
+      localStorage.removeItem("last_current_space");
       localStorage.removeItem("last_active_server");
+
       setServerHistory((prev) => {
         const updated = { ...prev };
-        delete updated[activeServer];
+        delete updated[server.id];
         return updated;
       });
 
       toast.success(response.data.message);
+
+      return true;
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to leave server.");
+
+      return false;
     }
-  }, [activeServer]);
+  }, []);
 
   const handleCreateServer = useCallback(async (newServerData) => {
     try {
@@ -1182,6 +1305,31 @@ export default function App() {
       return false;
     }
   }, []);
+
+  const handleTransferOwnership = useCallback(
+    async (targetUser) => {
+      if (!activeServer || !targetUser) return false;
+
+      try {
+        await axiosInstance.put(`/servers/${activeServer}/transfer-ownership`, {
+          newOwnerId: targetUser.id,
+        });
+
+        toast.success(
+          `Transferred server ownership to ${targetUser.username}.`,
+        );
+
+        return true;
+      } catch (err) {
+        toast.error(
+          err.response?.data?.message || "Failed to transfer server ownership.",
+        );
+
+        return false;
+      }
+    },
+    [activeServer],
+  );
 
   // Channel Action Events
   const handleCreateChannel = useCallback(
@@ -1281,8 +1429,14 @@ export default function App() {
   );
 
   const activeConversationData = useMemo(
-    () => conversations.find((c) => Number(c.id) === Number(activeDM)),
-    [conversations, activeDM],
+    () =>
+      conversations.find(
+        (conversation) => Number(conversation.id) === Number(activeDM),
+      ) ??
+      (Number(extraConversation?.id) === Number(activeDM)
+        ? extraConversation
+        : null),
+    [conversations, extraConversation, activeDM],
   );
 
   // ==========================================
@@ -1309,6 +1463,15 @@ export default function App() {
           <SidebarMember
             computedServerRoster={computedServerRoster}
             getAvatarColor={getAvatarColor}
+            currentUserId={user.id}
+            onChat={handleChatUser}
+            onAddFriend={handleSendFriendRequest}
+            onUnfriend={handleUnfriend}
+            onBlock={handleBlock}
+            onUnblock={handleUnblock}
+            onTransferOwnership={handleTransferOwnership}
+            serverId={activeServerData?.id}
+            isCurrentUserOwner={activeServerData?.role === "owner"}
           />
         </div>
       );
@@ -1340,7 +1503,7 @@ export default function App() {
             friends={friends}
             blockedUsers={blockedUsers}
             pendingRequests={pendingRequests}
-            onChat={handleDMClick}
+            onChat={handleChatUser}
             onSendFriendRequest={handleSendFriendRequest}
             setConfirmModal={setConfirmModal}
             getAvatarColor={getAvatarColor}
@@ -1395,6 +1558,7 @@ export default function App() {
             onChannelClick={handleChannelClick}
             onJoinVoice={handleJoinVoice}
             conversations={conversations}
+            extraConversation={extraConversation}
             onLoadMore={handleLoadMoreConversations}
             hasMore={conversationsHasMore}
             loading={conversationsLoading}
@@ -1405,7 +1569,7 @@ export default function App() {
             onCreateChannel={handleCreateChannel}
             onRenameChannel={handleRenameChannel}
             onDeleteChannel={handleDeleteChannel}
-            onLeaveServer={handleLeaveServer}
+            setConfirmModal={setConfirmModal}
           />
         </div>
         <UserPanel
@@ -1428,6 +1592,8 @@ export default function App() {
         onUnblock={handleUnblock}
         onAcceptFriend={handleAcceptFriendRequest}
         onDeclineFriend={handleDeclineFriendRequest}
+        onDeleteServer={handleDeleteServer}
+        onLeaveServer={handleLeaveServer}
       />
     </div>
   );

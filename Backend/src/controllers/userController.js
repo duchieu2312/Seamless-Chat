@@ -95,6 +95,59 @@ export async function getConversations(req, res) {
   }
 }
 
+export async function getConversationByUser(req, res) {
+  try {
+    const userId = req.user.id;
+    const targetUserId = req.params.userId;
+
+    if (!targetUserId) {
+      return res.status(400).json({
+        message: "Invalid user ID.",
+      });
+    }
+
+    const [userOneId, userTwoId] = [userId, targetUserId].sort();
+
+    const result = await pool.query(
+      `SELECT
+        c.id,
+        u.id AS "userId",
+        u.username,
+        u.avatar_url AS "avatarUrl",
+        u.status,
+        (
+          SELECT COUNT(*)::INT
+          FROM direct_messages dm
+          WHERE dm.conversation_id = c.id
+            AND dm.sender_id <> $1
+            AND dm.sent_at >
+              CASE
+                WHEN c.user_one_id = $1
+                THEN c.user_one_last_read
+                ELSE c.user_two_last_read
+              END
+        ) AS "unread"
+       FROM conversations c
+       JOIN users u
+         ON u.id = $2
+       WHERE c.user_one_id = $3
+         AND c.user_two_id = $4`,
+      [userId, targetUserId, userOneId, userTwoId],
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        message: "Conversation not found.",
+      });
+    }
+
+    return res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error inside getConversationByUser controller:", err);
+    return res.sendStatus(500);
+  }
+}
+
 export async function getFriends(req, res) {
   try {
     const userId = req.user.id;
@@ -248,7 +301,7 @@ export async function sendFriendRequest(req, res) {
 
   try {
     const senderId = req.user.id;
-    const { targetUser: targetUsername } = req.body;
+    const { targetUsername, serverId } = req.body;
 
     const targetUserRes = await client.query(
       "SELECT id FROM users WHERE username = $1",
@@ -343,6 +396,15 @@ export async function sendFriendRequest(req, res) {
         io.to(`user_${senderId}`).emit("conversations_updated");
         io.to(`user_${targetId}`).emit("conversations_updated");
 
+        if (serverId) {
+          io.to(`user_${senderId}`).emit("server_members_updated", {
+            serverId,
+          });
+          io.to(`user_${targetId}`).emit("server_members_updated", {
+            serverId,
+          });
+        }
+
         return res.json({ message: "Friend request accepted." });
       } catch (err) {
         await client.query("ROLLBACK");
@@ -359,6 +421,15 @@ export async function sendFriendRequest(req, res) {
 
     io.to(`user_${senderId}`).emit("pending_updated");
     io.to(`user_${targetId}`).emit("pending_updated");
+
+    if (serverId) {
+      io.to(`user_${senderId}`).emit("server_members_updated", {
+        serverId,
+      });
+      io.to(`user_${targetId}`).emit("server_members_updated", {
+        serverId,
+      });
+    }
 
     return res
       .status(201)
@@ -377,6 +448,7 @@ export async function acceptFriendRequest(req, res) {
   try {
     const userId = req.user.id;
     const { senderId } = req.params;
+    const { serverId } = req.body;
 
     await client.query("BEGIN");
 
@@ -421,6 +493,15 @@ export async function acceptFriendRequest(req, res) {
     io.to(`user_${userId}`).emit("conversations_updated");
     io.to(`user_${senderId}`).emit("conversations_updated");
 
+    if (serverId) {
+      io.to(`user_${userId}`).emit("server_members_updated", {
+        serverId,
+      });
+      io.to(`user_${senderId}`).emit("server_members_updated", {
+        serverId,
+      });
+    }
+
     return res.json({ message: "Friend request accepted successfully." });
   } catch (err) {
     await client.query("ROLLBACK");
@@ -436,6 +517,7 @@ export async function declineFriendRequest(req, res) {
   try {
     const userId = req.user.id;
     const { senderId } = req.params;
+    const { serverId } = req.body;
 
     const result = await pool.query(
       `DELETE FROM friendships
@@ -456,6 +538,15 @@ export async function declineFriendRequest(req, res) {
     io.to(`user_${userId}`).emit("pending_updated");
     io.to(`user_${senderId}`).emit("pending_updated");
 
+    if (serverId) {
+      io.to(`user_${userId}`).emit("server_members_updated", {
+        serverId,
+      });
+      io.to(`user_${senderId}`).emit("server_members_updated", {
+        serverId,
+      });
+    }
+
     return res.json({ message: "Friend request declined successfully." });
   } catch (err) {
     console.error("Error inside declineFriendRequest controller:", err);
@@ -469,6 +560,7 @@ export async function blockUser(req, res) {
   try {
     const userId = req.user.id;
     const { targetId } = req.params;
+    const { serverId } = req.body;
 
     if (userId === targetId) {
       return res.status(400).json({ message: "You cannot block yourself." });
@@ -504,6 +596,12 @@ export async function blockUser(req, res) {
     io.to(`user_${targetId}`).emit("pending_updated");
     io.to(`user_${userId}`).emit("blocked_updated");
     io.to(`user_${userId}`).emit("conversations_updated");
+    io.to(`user_${targetId}`).emit("conversations_updated");
+
+    if (serverId) {
+      io.to(`user_${userId}`).emit("server_members_updated", { serverId });
+      io.to(`user_${targetId}`).emit("server_members_updated", { serverId });
+    }
 
     return res.json({ message: "User has been blocked." });
   } catch (err) {
@@ -520,6 +618,7 @@ export async function unfriendUser(req, res) {
   try {
     const userId = req.user.id;
     const { targetId } = req.params;
+    const { serverId } = req.body;
 
     const result = await pool.query(
       `DELETE FROM friendships
@@ -541,6 +640,12 @@ export async function unfriendUser(req, res) {
     io.to(`user_${userId}`).emit("friends_updated");
     io.to(`user_${targetId}`).emit("friends_updated");
     io.to(`user_${userId}`).emit("conversations_updated");
+    io.to(`user_${targetId}`).emit("conversations_updated");
+
+    if (serverId) {
+      io.to(`user_${userId}`).emit("server_members_updated", { serverId });
+      io.to(`user_${targetId}`).emit("server_members_updated", { serverId });
+    }
 
     return res.json({ message: "User has been unfriended." });
   } catch (err) {
@@ -553,6 +658,7 @@ export async function unblockUser(req, res) {
   try {
     const userId = req.user.id;
     const { targetId } = req.params;
+    const { serverId } = req.body;
 
     const deleteRes = await pool.query(
       "DELETE FROM friendships WHERE user_id = $1 AND friend_id = $2 AND status = 'blocked'",
@@ -566,6 +672,11 @@ export async function unblockUser(req, res) {
     const io = getIO();
 
     io.to(`user_${userId}`).emit("blocked_updated");
+
+    if (serverId) {
+      io.to(`user_${userId}`).emit("server_members_updated", { serverId });
+      io.to(`user_${targetId}`).emit("server_members_updated", { serverId });
+    }
 
     return res.json({ message: "User has been unblocked." });
   } catch (err) {

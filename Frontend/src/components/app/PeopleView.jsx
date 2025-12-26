@@ -231,7 +231,7 @@ function PeopleView({
 
                       <div className="flex gap-1 flex-shrink-0">
                         <button
-                          onClick={() => onChat(friend.conversationId)}
+                          onClick={() => onChat(friend)}
                           className="p-2 hover:bg-indigo-500/20 rounded-lg transition-colors group"
                           title="Chat"
                         >
@@ -245,7 +245,7 @@ function PeopleView({
                             setConfirmModal({
                               open: true,
                               type: "unfriend",
-                              friend,
+                              target: friend,
                             })
                           }
                           className="p-2 hover:bg-orange-500/20 rounded-lg transition-colors group"
@@ -261,7 +261,7 @@ function PeopleView({
                             setConfirmModal({
                               open: true,
                               type: "block",
-                              friend,
+                              target: friend,
                             })
                           }
                           className="p-2 hover:bg-red-500/20 rounded-lg transition-colors group"
@@ -328,7 +328,7 @@ function PeopleView({
                             setConfirmModal({
                               open: true,
                               type: "accept",
-                              friend: reqUser,
+                              target: reqUser,
                             })
                           }
                           className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition-colors flex items-center gap-1 text-xs font-semibold shadow"
@@ -340,7 +340,7 @@ function PeopleView({
                             setConfirmModal({
                               open: true,
                               type: "decline",
-                              friend: reqUser,
+                              target: reqUser,
                             })
                           }
                           className="p-2 hover:bg-red-500/10 text-gray-400 hover:text-red-400 rounded-lg transition-colors"
@@ -403,7 +403,7 @@ function PeopleView({
                           setConfirmModal({
                             open: true,
                             type: "unblock",
-                            friend: user,
+                            target: user,
                           })
                         }
                         className="px-4 py-2 bg-green-500/10 hover:bg-green-500/20 text-green-400 rounded-lg transition-colors flex items-center gap-2 text-sm font-semibold flex-shrink-0"

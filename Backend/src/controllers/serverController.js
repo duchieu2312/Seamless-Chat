@@ -200,59 +200,6 @@ export async function joinServerByCode(req, res) {
   }
 }
 
-export async function leaveServer(req, res) {
-  try {
-    const userId = req.user.id;
-    const { serverId } = req.params;
-    const cleanServerId = Number(serverId);
-
-    if (!Number.isInteger(cleanServerId) || cleanServerId <= 0) {
-      return res.status(400).json({ message: "Invalid server ID format" });
-    }
-
-    const member = await pool.query(
-      `SELECT role
-       FROM server_members
-       WHERE server_id = $1
-       AND member_id = $2`,
-      [cleanServerId, userId],
-    );
-
-    if (member.rowCount === 0) {
-      return res.status(404).json({
-        message: "You are not a member of this server.",
-      });
-    }
-
-    if (member.rows[0].role === "owner") {
-      return res.status(400).json({
-        message: "Owner cannot leave the server.",
-      });
-    }
-
-    await pool.query(
-      `DELETE FROM server_members
-       WHERE server_id = $1
-       AND member_id = $2`,
-      [cleanServerId, userId],
-    );
-
-    const io = getIO();
-
-    io.to(`user_${userId}`).emit("servers_updated");
-    io.to(`user_${userId}`).emit("communities_updated");
-
-    io.to(`server_${cleanServerId}`).emit("server_members_updated", {
-      serverId: cleanServerId,
-    });
-
-    return res.json({ message: "Left server successfully." });
-  } catch (err) {
-    console.error("Error inside leaveServer controller:", err);
-    return res.sendStatus(500);
-  }
-}
-
 export async function getJoinedServers(req, res) {
   try {
     const userId = req.user.id;
@@ -310,6 +257,7 @@ export async function getServerChannels(req, res) {
 
 export async function getServerMembers(req, res) {
   try {
+    const userId = req.user.id;
     const { serverId } = req.params;
     const cleanServerId = Number(serverId);
 
@@ -318,20 +266,55 @@ export async function getServerMembers(req, res) {
     }
 
     const result = await pool.query(
-      `SELECT 
+      `SELECT
         u.id,
         u.username,
         u.avatar_url AS "avatarUrl",
         u.status,
         sm.role,
-        TO_CHAR(sm.joined_at, 'YYYY-MM-DD HH:MI AM') AS "joinedAt"
-       FROM server_members sm
-       INNER JOIN users u ON sm.member_id = u.id
-       WHERE sm.server_id = $1
-       ORDER BY 
-        CASE WHEN sm.role = 'owner' THEN 0 ELSE 1 END, 
-        u.username ASC`,
-      [cleanServerId],
+        TO_CHAR(sm.joined_at, 'YYYY-MM-DD HH:MI AM') AS "joinedAt",
+        CASE
+          WHEN f.status = 'accepted' THEN 'accepted'
+
+          WHEN f.status = 'blocked' AND f.user_id = $1
+            THEN 'blocked_by_me'
+
+          WHEN f.status = 'blocked' AND f.friend_id = $1
+            THEN 'blocked_by_them'
+
+          WHEN f.status = 'pending' AND f.user_id = $1
+            THEN 'pending_sent'
+
+          WHEN f.status = 'pending' AND f.friend_id = $1
+            THEN 'pending_received'
+
+          ELSE 'none'
+        END AS "friendshipStatus"
+      FROM server_members sm
+      INNER JOIN users u
+        ON sm.member_id = u.id
+      LEFT JOIN LATERAL (
+        SELECT
+          f.status,
+          f.user_id,
+          f.friend_id
+        FROM friendships f
+        WHERE
+          (f.user_id = $1 AND f.friend_id = u.id)
+          OR
+          (f.user_id = u.id AND f.friend_id = $1)
+        ORDER BY
+          CASE
+            WHEN f.status = 'pending' THEN 0
+            ELSE 1
+          END
+          LIMIT 1
+      ) f ON true
+      WHERE sm.server_id = $2
+      ORDER BY
+      CASE WHEN sm.role = 'owner' THEN 0 ELSE 1 END,
+      u.username ASC`,
+      [userId, cleanServerId],
     );
 
     return res.json(result.rows);
@@ -729,5 +712,240 @@ export async function deleteChannel(req, res) {
   } catch (err) {
     console.error("Error inside deleteChannel controller:", err);
     return res.sendStatus(500);
+  }
+}
+
+export async function deleteServer(req, res) {
+  try {
+    const userId = req.user.id;
+    const { serverId } = req.params;
+    const cleanServerId = Number(serverId);
+
+    if (!Number.isInteger(cleanServerId) || cleanServerId <= 0) {
+      return res.status(400).json({
+        message: "Invalid server ID format",
+      });
+    }
+
+    const memberResult = await pool.query(
+      `SELECT role
+       FROM server_members
+       WHERE server_id = $1
+       AND member_id = $2`,
+      [cleanServerId, userId],
+    );
+
+    if (memberResult.rowCount === 0) {
+      return res.status(403).json({
+        message: "You are not a member of this server.",
+      });
+    }
+
+    if (memberResult.rows[0].role !== "owner") {
+      return res.status(403).json({
+        message: "Only the server owner can delete this server.",
+      });
+    }
+
+    const result = await pool.query(
+      `DELETE FROM servers
+       WHERE id = $1
+       AND owner_id = $2
+       RETURNING id`,
+      [cleanServerId, userId],
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        message: "Server not found.",
+      });
+    }
+
+    const io = getIO();
+
+    io.to(`server_${cleanServerId}`).emit("servers_updated");
+    io.to(`server_${cleanServerId}`).emit("communities_updated");
+
+    io.to(`server_${cleanServerId}`).emit("server_deleted", {
+      serverId: cleanServerId,
+    });
+
+    return res.json({
+      message: "Server deleted successfully.",
+    });
+  } catch (err) {
+    console.error("Error inside deleteServer controller:", err);
+    return res.sendStatus(500);
+  }
+}
+
+export async function leaveServer(req, res) {
+  try {
+    const userId = req.user.id;
+    const { serverId } = req.params;
+    const cleanServerId = Number(serverId);
+
+    if (!Number.isInteger(cleanServerId) || cleanServerId <= 0) {
+      return res.status(400).json({ message: "Invalid server ID format" });
+    }
+
+    const member = await pool.query(
+      `SELECT role
+       FROM server_members
+       WHERE server_id = $1
+       AND member_id = $2`,
+      [cleanServerId, userId],
+    );
+
+    if (member.rowCount === 0) {
+      return res.status(404).json({
+        message: "You are not a member of this server.",
+      });
+    }
+
+    if (member.rows[0].role === "owner") {
+      return res.status(400).json({
+        message: "Owner cannot leave the server.",
+      });
+    }
+
+    await pool.query(
+      `DELETE FROM server_members
+       WHERE server_id = $1
+       AND member_id = $2`,
+      [cleanServerId, userId],
+    );
+
+    const io = getIO();
+
+    io.to(`user_${userId}`).emit("servers_updated");
+    io.to(`user_${userId}`).emit("communities_updated");
+
+    io.to(`server_${cleanServerId}`).emit("server_members_updated", {
+      serverId: cleanServerId,
+    });
+
+    return res.json({ message: "Left server successfully." });
+  } catch (err) {
+    console.error("Error inside leaveServer controller:", err);
+    return res.sendStatus(500);
+  }
+}
+
+export async function transferOwnership(req, res) {
+  const client = await pool.connect();
+
+  try {
+    const userId = req.user.id;
+    const { serverId } = req.params;
+    const { newOwnerId } = req.body;
+
+    const cleanServerId = Number(serverId);
+
+    if (!Number.isInteger(cleanServerId) || cleanServerId <= 0) {
+      return res.status(400).json({
+        message: "Invalid server ID format",
+      });
+    }
+
+    const cleanNewOwnerId = String(newOwnerId || "").trim();
+
+    if (!cleanNewOwnerId) {
+      return res.status(400).json({
+        message: "Invalid new owner ID format",
+      });
+    }
+
+    if (userId === cleanNewOwnerId) {
+      return res.status(400).json({
+        message: "You are already the owner of this server.",
+      });
+    }
+
+    await client.query("BEGIN");
+
+    const ownerResult = await client.query(
+      `SELECT owner_id
+       FROM servers
+       WHERE id = $1`,
+      [cleanServerId],
+    );
+
+    if (ownerResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+
+      return res.status(404).json({
+        message: "Server not found.",
+      });
+    }
+
+    if (ownerResult.rows[0].owner_id !== userId) {
+      await client.query("ROLLBACK");
+
+      return res.status(403).json({
+        message: "Only the server owner can transfer ownership.",
+      });
+    }
+
+    const memberResult = await client.query(
+      `SELECT role
+       FROM server_members
+       WHERE server_id = $1
+       AND member_id = $2`,
+      [cleanServerId, cleanNewOwnerId],
+    );
+
+    if (memberResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+
+      return res.status(400).json({
+        message: "The new owner must be a member of this server.",
+      });
+    }
+
+    await client.query(
+      `UPDATE servers
+       SET owner_id = $1
+       WHERE id = $2`,
+      [cleanNewOwnerId, cleanServerId],
+    );
+
+    await client.query(
+      `UPDATE server_members
+       SET role = 'member'
+       WHERE server_id = $1
+       AND member_id = $2`,
+      [cleanServerId, userId],
+    );
+
+    await client.query(
+      `UPDATE server_members
+       SET role = 'owner'
+       WHERE server_id = $1
+       AND member_id = $2`,
+      [cleanServerId, cleanNewOwnerId],
+    );
+
+    await client.query("COMMIT");
+
+    const io = getIO();
+
+    io.to(`user_${userId}`).emit("servers_updated");
+    io.to(`user_${cleanNewOwnerId}`).emit("servers_updated");
+
+    io.to(`server_${cleanServerId}`).emit("server_members_updated", {
+      serverId: cleanServerId,
+    });
+
+    return res.json({
+      message: "Server ownership transferred successfully.",
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+
+    console.error("Error inside transferOwnership controller:", err);
+    return res.sendStatus(500);
+  } finally {
+    client.release();
   }
 }

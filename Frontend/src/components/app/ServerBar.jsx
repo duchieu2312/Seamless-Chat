@@ -29,6 +29,7 @@ function ServerBar({
   onChannelClick,
   onJoinVoice,
   conversations,
+  extraConversation,
   onLoadMore,
   hasMore,
   loading,
@@ -39,7 +40,7 @@ function ServerBar({
   onCreateChannel,
   onRenameChannel,
   onDeleteChannel,
-  onLeaveServer,
+  setConfirmModal,
 }) {
   const isOwner = server?.role === "owner";
   const isPublic = server?.isPublic;
@@ -50,13 +51,17 @@ function ServerBar({
   const [isChangeChannelsModalOpen, setIsChangeChannelsModalOpen] =
     useState(false);
 
+  const scrollContainerRef = useRef(null);
   const loadMoreRef = useRef(null);
   const hasLeftRef = useRef(true);
 
   useEffect(() => {
-    const target = loadMoreRef.current;
+    if (currentSpace === "SERVER") return;
 
-    if (!target) return;
+    const target = loadMoreRef.current;
+    const root = scrollContainerRef.current;
+
+    if (!target || !root) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -73,6 +78,7 @@ function ServerBar({
         }
       },
       {
+        root,
         threshold: 0.1,
       },
     );
@@ -80,7 +86,7 @@ function ServerBar({
     observer.observe(target);
 
     return () => observer.disconnect();
-  }, [hasMore, loading, onLoadMore]);
+  }, [currentSpace, hasMore, loading, onLoadMore]);
 
   const handleGetInviteCode = async () => {
     try {
@@ -91,6 +97,14 @@ function ServerBar({
       toast.error("Failed to copy invite code.", err);
     }
   };
+
+  const displayedConversations = [
+    ...(extraConversation ? [extraConversation] : []),
+    ...conversations.filter(
+      (conversation) =>
+        Number(conversation.id) !== Number(extraConversation?.id),
+    ),
+  ];
 
   return (
     <div className="w-[280px] min-w-[280px] max-w-[280px] basis-[280px] flex-shrink-0 bg-black/20 backdrop-blur-xl border-r border-white/5 flex flex-col relative z-30">
@@ -152,7 +166,11 @@ function ServerBar({
                     <button
                       onClick={() => {
                         setShowMenu(false);
-                        // onDeleteServer();
+                        setConfirmModal({
+                          open: true,
+                          type: "deleteServer",
+                          target: server,
+                        });
                       }}
                       className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10"
                     >
@@ -163,7 +181,11 @@ function ServerBar({
                   <button
                     onClick={() => {
                       setShowMenu(false);
-                      onLeaveServer();
+                      setConfirmModal({
+                        open: true,
+                        type: "leaveServer",
+                        target: server,
+                      });
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10"
                   >
@@ -192,7 +214,7 @@ function ServerBar({
                   {channel.name}
                 </span>
                 {channel.unread > 0 && (
-                  <span className="bg-red-500 text-white  text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0">
+                  <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0">
                     {channel.unread > 99 ? "99+" : channel.unread}
                   </span>
                 )}
@@ -250,7 +272,10 @@ function ServerBar({
           </div>
 
           {/* Home, People, Community Routes */}
-          <div className="flex-1 overflow-y-auto">
+          <div
+            ref={scrollContainerRef}
+            className="flex-1 min-h-0 overflow-y-auto"
+          >
             <div className="p-2 space-y-1">
               {homeItems.map((item) => {
                 const Icon = item.icon;
@@ -261,7 +286,12 @@ function ServerBar({
                     whileHover={{ x: 4 }}
                     onClick={() => onHomeTabClick(item.id)}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all
-                      ${isActive ? "bg-white/10 text-white" : "text-gray-400 hover:bg-white/5 hover:text-gray-200"}`}
+                      ${
+                        isActive
+                          ? "bg-white/10 text-white"
+                          : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
+                      }
+                    `}
                   >
                     <Icon size={20} className="flex-shrink-0" />
                     <span className="font-medium text-sm">{item.label}</span>
@@ -276,7 +306,7 @@ function ServerBar({
                 Direct Messages
               </div>
               <div className="space-y-0.5">
-                {conversations.map((conversation) => {
+                {displayedConversations.map((conversation) => {
                   const isActive = activeDM === conversation.id;
 
                   return (
@@ -335,6 +365,7 @@ function ServerBar({
                   );
                 })}
               </div>
+              {/* Load More Sentinel */}
               <div
                 ref={loadMoreRef}
                 className="h-10 flex items-center justify-center"

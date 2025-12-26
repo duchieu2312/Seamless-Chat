@@ -6,6 +6,8 @@ import {
   FiUnlock,
   FiUserCheck,
   FiUserMinus,
+  FiTrash2,
+  FiLogOut,
 } from "react-icons/fi";
 import React, { useState } from "react";
 import { createPortal } from "react-dom";
@@ -18,17 +20,19 @@ function ConfirmModal({
   onBlock,
   onUnfriend,
   onUnblock,
+  onDeleteServer,
+  onLeaveServer,
 }) {
   const [processing, setProcessing] = useState(false);
 
   const handleClose = () => {
     if (processing) return;
 
-    setConfirmModal({ open: false, type: "", friend: null });
+    setConfirmModal({ open: false, type: "", target: null });
   };
 
   const executeAction = async () => {
-    const target = confirmModal.friend;
+    const target = confirmModal.target;
 
     if (!target || processing) return;
 
@@ -58,6 +62,14 @@ function ConfirmModal({
           success = await onUnblock(target);
           break;
 
+        case "deleteServer":
+          success = await onDeleteServer(target);
+          break;
+
+        case "leaveServer":
+          success = await onLeaveServer(target);
+          break;
+
         default:
           break;
       }
@@ -73,7 +85,7 @@ function ConfirmModal({
   const config = {
     accept: {
       title: "Accept Friend Request",
-      desc: `Do you want to accept the friend request from ${confirmModal.friend?.username} and add them to your friend list?`,
+      desc: `Do you want to accept the friend request from ${confirmModal.target?.username} and add them to your friend list?`,
       btnText: "Accept",
       btnClass:
         "bg-indigo-500 hover:bg-indigo-600 shadow-lg shadow-indigo-500/20",
@@ -82,7 +94,7 @@ function ConfirmModal({
     },
     decline: {
       title: "Decline Request",
-      desc: `Are you sure you want to decline the friend request from ${confirmModal.friend?.username}?`,
+      desc: `Are you sure you want to decline the friend request from ${confirmModal.target?.username}?`,
       btnText: "Decline",
       btnClass: "bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/20",
       iconBg: "bg-red-500/20 text-red-400",
@@ -90,7 +102,7 @@ function ConfirmModal({
     },
     unfriend: {
       title: "Unfriend",
-      desc: `Are you sure you want to unfriend ${confirmModal.friend?.username}?`,
+      desc: `Are you sure you want to unfriend ${confirmModal.target?.username}?`,
       btnText: "Unfriend",
       btnClass:
         "bg-orange-500 hover:bg-orange-600 shadow-lg shadow-orange-500/20",
@@ -99,7 +111,7 @@ function ConfirmModal({
     },
     block: {
       title: "Block User",
-      desc: `Are you sure you want to block ${confirmModal.friend?.username}? They won't be able to message you or see your online status.`,
+      desc: `Are you sure you want to block ${confirmModal.target?.username}? They won't be able to message you or see your online status.`,
       btnText: "Block",
       btnClass: "bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/20",
       iconBg: "bg-red-500/20 text-red-400",
@@ -107,11 +119,27 @@ function ConfirmModal({
     },
     unblock: {
       title: "Unblock User",
-      desc: `Are you sure you want to unblock ${confirmModal.friend?.username}? They will be able to send you messages again.`,
+      desc: `Are you sure you want to unblock ${confirmModal.target?.username}? They will be able to send you messages again.`,
       btnText: "Unblock",
       btnClass: "bg-green-500 hover:bg-green-600 shadow-lg shadow-green-500/20",
       iconBg: "bg-green-500/20 text-green-400",
       icon: FiUnlock,
+    },
+    deleteServer: {
+      title: "Delete Server",
+      desc: `Are you sure you want to delete "${confirmModal.target?.name}"? This action cannot be undone.`,
+      btnText: "Delete Server",
+      btnClass: "bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/20",
+      iconBg: "bg-red-500/20 text-red-400",
+      icon: FiTrash2,
+    },
+    leaveServer: {
+      title: "Leave Server",
+      desc: `Are you sure you want to leave "${confirmModal.target?.name}"? You will need to join again to access this server.`,
+      btnText: "Leave Server",
+      btnClass: "bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/20",
+      iconBg: "bg-red-500/20 text-red-400",
+      icon: FiLogOut,
     },
   };
 

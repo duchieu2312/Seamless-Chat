@@ -16,6 +16,7 @@ import {
 import {
   getUserInfo,
   getConversations,
+  getConversationByUser,
   getFriends,
   getPendingRequests,
   getBlockedUsers,
@@ -30,15 +31,17 @@ import {
   getCommunities,
   joinServer,
   joinServerByCode,
-  leaveServer,
   getJoinedServers,
   getServerChannels,
   getServerMembers,
   updateServerDetails,
+  createNewServer,
   createChannel,
   updateChannelName,
   deleteChannel,
-  createNewServer,
+  deleteServer,
+  leaveServer,
+  transferOwnership,
 } from "./controllers/serverController.js";
 import {
   getDirectMessages,
@@ -74,6 +77,11 @@ app.post("/api/auth/refresh", refreshLimiter, refreshToken);
 // USER ROUTES
 app.get("/api/users/me", authenticateToken, getUserInfo);
 app.get("/api/users/conversations", authenticateToken, getConversations);
+app.get(
+  "/api/users/:userId/conversation",
+  authenticateToken,
+  getConversationByUser,
+);
 app.get("/api/users/friends", authenticateToken, getFriends);
 app.get("/api/users/friends/pending", authenticateToken, getPendingRequests);
 app.get("/api/users/friends/blocked", authenticateToken, getBlockedUsers);
@@ -104,7 +112,6 @@ app.delete(
 app.get("/api/servers/public", authenticateToken, getCommunities);
 app.post("/api/servers/:serverId/join", authenticateToken, joinServer);
 app.post("/api/servers/joinServerByCode", authenticateToken, joinServerByCode);
-app.delete("/api/servers/:serverId/leave", authenticateToken, leaveServer);
 app.get("/api/servers/joined", authenticateToken, getJoinedServers);
 app.get(
   "/api/servers/:serverId/channels",
@@ -117,6 +124,7 @@ app.put(
   authenticateToken,
   updateServerDetails,
 );
+app.post("/api/servers/createServer", authenticateToken, createNewServer);
 app.post(
   "/api/servers/:serverId/channels/create",
   authenticateToken,
@@ -132,8 +140,13 @@ app.delete(
   authenticateToken,
   deleteChannel,
 );
-app.post("/api/servers/createServer", authenticateToken, createNewServer);
-
+app.delete("/api/servers/:serverId/delete", authenticateToken, deleteServer);
+app.delete("/api/servers/:serverId/leave", authenticateToken, leaveServer);
+app.put(
+  "/api/servers/:serverId/transfer-ownership",
+  authenticateToken,
+  transferOwnership,
+);
 // MESSAGE ROUTES
 app.get(
   "/api/conversations/:conversationId/messages",
