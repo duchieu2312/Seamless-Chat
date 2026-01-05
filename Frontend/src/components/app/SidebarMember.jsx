@@ -5,6 +5,7 @@ import MemberActionModal from "./Modals/MemberActionModal";
 function SidebarMember({
   computedServerRoster,
   getAvatarColor,
+  statusConfig,
   currentUserId,
   onChat,
   onAddFriend,
@@ -54,32 +55,27 @@ function SidebarMember({
         }`}
       >
         {/* Avatar */}
-        <div className="relative w-8 h-8 flex-shrink-0">
+        <div className="relative w-10 h-10 flex-shrink-0">
           {member.avatarUrl ? (
             <img
               src={member.avatarUrl}
               alt={member.username}
-              className="w-8 h-8 rounded-full object-cover"
+              className="w-10 h-10 rounded-full object-cover"
             />
           ) : (
             <div
-              className={`w-8 h-8 rounded-full bg-gradient-to-br ${getAvatarColor(
+              className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarColor(
                 member.username,
-              )} flex items-center justify-center font-bold text-white text-xs`}
+              )} flex items-center justify-center font-bold text-white text-sm`}
             >
               {member.username?.charAt(0).toUpperCase()}
             </div>
           )}
 
           <div
-            className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#1e293b]
-            ${
-              member.status === "online"
-                ? "bg-green-500"
-                : member.status === "idle"
-                  ? "bg-yellow-500"
-                  : "bg-gray-500"
-            }`}
+            className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-[#1e293b]
+              ${statusConfig[member.status]?.color || statusConfig.offline.color}
+            transition-all duration-300 shadow-sm`}
           />
         </div>
 
@@ -139,6 +135,7 @@ function SidebarMember({
       {/* Member Action Modal */}
       <MemberActionModal
         member={selectedMember}
+        getAvatarColor={getAvatarColor}
         isOpen={isMemberActionModalOpen}
         onClose={handleCloseMemberActionModal}
         friendshipStatus={selectedMember?.friendshipStatus ?? "none"}

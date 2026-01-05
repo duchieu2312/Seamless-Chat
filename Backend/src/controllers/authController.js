@@ -29,7 +29,7 @@ async function generateRefreshToken(userId, oldExp = null) {
     if (secondsLeft <= 0) throw new Error("Old refresh token expired");
     expiresIn = `${secondsLeft}s`;
   } else {
-    expiresAt = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
+    expiresAt = new Date(Date.now() + REFRESH_MAX_AGE);
     expiresIn = REFRESH_EXPIRES;
   }
 
@@ -134,15 +134,27 @@ export async function loginUser(req, res) {
     const result = await pool.query("SELECT * FROM users WHERE email = $1", [
       email,
     ]);
+
     const user = result.rows[0];
 
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
       return res.status(401).json({ message: "Invalid Email or Password" });
     }
 
-    await pool.query("DELETE FROM refresh_tokens WHERE user_id = $1", [
-      user.id,
-    ]);
+    const activeSession = await pool.query(
+      `SELECT id
+       FROM refresh_tokens
+       WHERE user_id = $1
+         AND expires_at > CURRENT_TIMESTAMP
+       LIMIT 1`,
+      [user.id],
+    );
+
+    if (activeSession.rowCount > 0) {
+      return res.status(409).json({
+        message: "This account is already logged in on another device.",
+      });
+    }
 
     const accessToken = generateAccessToken(user.id);
     const { refreshToken } = await generateRefreshToken(user.id);
@@ -154,6 +166,7 @@ export async function loginUser(req, res) {
         id: user.id,
         username: user.username,
         avatarUrl: user.avatar_url,
+        status: user.status,
       },
     });
   } catch (err) {

@@ -1,3 +1,4 @@
+import { Navigate } from "react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import LoginForm from "../components/auth/LoginForm";
@@ -7,14 +8,20 @@ import AuthBanner from "../components/auth/AuthBanner";
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
 
-  useEffect(() => {
-    const sessionExpired = localStorage.getItem("sessionExpired");
+  const cachedUser = localStorage.getItem("user");
 
-    if (sessionExpired) {
-      toast.error("Session expired. Please sign in again.");
-      localStorage.removeItem("sessionExpired");
+  useEffect(() => {
+    const authError = localStorage.getItem("authError");
+
+    if (authError) {
+      toast.error(authError);
+      localStorage.removeItem("authError");
     }
   }, []);
+
+  if (cachedUser) {
+    return <Navigate to="/seamless-chat" replace />;
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-200 p-4 font-sans">

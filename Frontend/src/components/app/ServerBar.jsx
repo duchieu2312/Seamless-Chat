@@ -36,6 +36,7 @@ function ServerBar({
   activeDM,
   onDMClick,
   getAvatarColor,
+  statusConfig,
   onChangeServerDetails,
   onCreateChannel,
   onRenameChannel,
@@ -340,15 +341,9 @@ function ServerBar({
                           </div>
                         )}
                         <div
-                          className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-[#1e293b]
-                            ${
-                              conversation.status === "online"
-                                ? "bg-green-500"
-                                : conversation.status === "idle"
-                                  ? "bg-yellow-500"
-                                  : "bg-gray-500"
-                            }
-                          `}
+                          className={`absolute bottom-0 right-0 w-3.5 h-3.5 
+                            ${statusConfig[conversation.status]?.color || statusConfig.offline.color}
+                          rounded-full border-2 border-[#1e293b] transition-all duration-300 shadow-sm`}
                         />
                       </div>
                       <span className="text-sm font-medium flex-1 text-left truncate">

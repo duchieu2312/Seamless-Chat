@@ -7,7 +7,7 @@ export function startTokenCleanupJob() {
     async () => {
       try {
         const result = await pool.query(
-          "DELETE FROM refresh_tokens WHERE expires_at < NOW()",
+          "DELETE FROM refresh_tokens WHERE expires_at <= NOW()",
         );
         console.log(`[Cron] Deleted ${result.rowCount} expired refresh tokens`);
       } catch (err) {

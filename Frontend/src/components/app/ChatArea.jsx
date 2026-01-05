@@ -10,6 +10,7 @@ function ChatArea(props) {
     onSendMessage,
     isDM,
     getAvatarColor,
+    statusConfig,
     onLoadMore,
     hasMore,
     loadingMore,
@@ -23,6 +24,7 @@ function ChatArea(props) {
         channel={channel}
         isDM={isDM}
         getAvatarColor={getAvatarColor}
+        statusConfig={statusConfig}
       />
 
       <MessageList

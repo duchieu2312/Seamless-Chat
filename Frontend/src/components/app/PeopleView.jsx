@@ -20,6 +20,7 @@ function PeopleView({
   onSendFriendRequest,
   setConfirmModal,
   getAvatarColor,
+  statusConfig,
   onLoadMore,
   onSearch,
   hasMore,
@@ -210,13 +211,18 @@ function PeopleView({
                           />
                         ) : (
                           <div
-                            className={`w-12 h-12 rounded-full bg-gradient-to-br ${getAvatarColor(friend.username)} flex items-center justify-center font-bold text-white text-base`}
+                            className={`w-12 h-12 rounded-full bg-gradient-to-br ${getAvatarColor(
+                              friend.username,
+                            )} flex items-center justify-center text-white font-bold text-xl select-none`}
                           >
                             {friend.username?.charAt(0).toUpperCase() || "?"}
                           </div>
                         )}
+
                         <div
-                          className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-[#1e293b] ${friend.status === "online" ? "bg-green-500" : friend.status === "idle" ? "bg-yellow-500" : "bg-gray-500"}`}
+                          className={`absolute bottom-0 right-0 w-4 h-4 
+                            ${statusConfig[friend.status]?.color || statusConfig.offline.color} 
+                          rounded-full border-2 border-[#1e293b] transition-all duration-300 shadow-sm`}
                         />
                       </div>
 
@@ -224,11 +230,14 @@ function PeopleView({
                         <div className="font-semibold text-gray-200 truncate">
                           {friend.username}
                         </div>
-                        <div className="text-xs text-gray-400 capitalize leading-none mt-1">
-                          {friend.status || "offline"}
+
+                        <div className="text-xs text-gray-400 leading-none mt-1">
+                          {friend.status === "invisible"
+                            ? "Offline"
+                            : statusConfig[friend.status]?.label ||
+                              statusConfig.offline.label}
                         </div>
                       </div>
-
                       <div className="flex gap-1 flex-shrink-0">
                         <button
                           onClick={() => onChat(friend)}
@@ -297,7 +306,7 @@ function PeopleView({
                       whileHover={{ x: 4 }}
                       className="flex items-center gap-4 p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-all"
                     >
-                      <div className="flex-shrink-0">
+                      <div className="relative flex-shrink-0">
                         {reqUser.avatarUrl ? (
                           <img
                             src={reqUser.avatarUrl}
@@ -306,7 +315,9 @@ function PeopleView({
                           />
                         ) : (
                           <div
-                            className={`w-12 h-12 rounded-full bg-gradient-to-br ${getAvatarColor(reqUser.username)} flex items-center justify-center font-bold text-white text-base`}
+                            className={`w-12 h-12 rounded-full bg-gradient-to-br ${getAvatarColor(
+                              reqUser.username,
+                            )} flex items-center justify-center text-white font-bold text-xl select-none`}
                           >
                             {reqUser.username?.charAt(0).toUpperCase() || "?"}
                           </div>
@@ -317,8 +328,9 @@ function PeopleView({
                         <div className="font-semibold text-gray-200 truncate">
                           {reqUser.username}
                         </div>
-                        <div className="text-xs text-indigo-400 flex items-center gap-1 mt-0.5">
-                          <FiClock size={12} /> Incoming Friend Request
+                        <div className="text-xs text-indigo-400 flex items-center gap-1 mt-1">
+                          <FiClock size={12} />
+                          Incoming Friend Request
                         </div>
                       </div>
 
@@ -373,7 +385,7 @@ function PeopleView({
                       whileHover={{ x: 4 }}
                       className="flex items-center gap-4 p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-all"
                     >
-                      <div className="flex-shrink-0">
+                      <div className="relative flex-shrink-0">
                         {user.avatarUrl ? (
                           <img
                             src={user.avatarUrl}
@@ -382,7 +394,9 @@ function PeopleView({
                           />
                         ) : (
                           <div
-                            className={`w-12 h-12 rounded-full bg-gradient-to-br ${getAvatarColor(user.username)} flex items-center justify-center font-bold text-white text-base`}
+                            className={`w-12 h-12 rounded-full bg-gradient-to-br ${getAvatarColor(
+                              user.username,
+                            )} flex items-center justify-center text-white font-bold text-xl select-none`}
                           >
                             {user.username?.charAt(0).toUpperCase() || "?"}
                           </div>
@@ -393,7 +407,7 @@ function PeopleView({
                         <div className="font-semibold text-gray-400 truncate">
                           {user.username}
                         </div>
-                        <div className="text-xs text-gray-500 mt-0.5">
+                        <div className="text-xs text-gray-500 mt-1">
                           Blocked on {user.updatedAt || "N/A"}
                         </div>
                       </div>

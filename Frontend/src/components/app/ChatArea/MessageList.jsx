@@ -134,13 +134,13 @@ function MessageList({
             <img
               src={msg.avatarUrl}
               alt={msg.username}
-              className="w-10 h-10 rounded-full"
+              className="w-10 h-10 rounded-full object-cover"
             />
           ) : (
             <div
               className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarColor(
                 msg.username,
-              )} flex items-center justify-center text-white font-bold`}
+              )} flex items-center justify-center text-white font-bold text-sm`}
             >
               {msg.username?.[0]?.toUpperCase()}
             </div>

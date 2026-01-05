@@ -54,6 +54,15 @@ axiosInstance.interceptors.response.use(
       !originalRequest._retry &&
       !isSkipUrl
     ) {
+      const cachedUser = localStorage.getItem("user");
+
+      // No cached user → user is not signed in
+      if (!cachedUser) {
+        localStorage.setItem("authError", "Please sign in to continue.");
+        window.location.href = "/";
+        return Promise.reject(error);
+      }
+
       // If a refresh request is already running, wait in line
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
@@ -81,7 +90,10 @@ axiosInstance.interceptors.response.use(
         processQueue(refreshError);
 
         localStorage.clear();
-        localStorage.setItem("sessionExpired", "true");
+        localStorage.setItem(
+          "authError",
+          "Session expired. Please sign in again.",
+        );
         window.location.href = "/";
 
         return Promise.reject(refreshError);

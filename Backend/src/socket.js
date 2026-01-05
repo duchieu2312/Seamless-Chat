@@ -74,7 +74,7 @@ export const initSocket = (server) => {
             [socket.userId],
           );
 
-          socket.broadcast.emit("user_status_changed", {
+          socket.emit("user_status_changed", {
             userId: socket.userId,
             status: result.rows[0].status,
           });

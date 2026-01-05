@@ -18,6 +18,7 @@ export default function ProtectedRoute({ children }) {
             id: data.id,
             username: data.username,
             avatarUrl: data.avatarUrl,
+            status: data.status,
           }),
         );
       } catch {

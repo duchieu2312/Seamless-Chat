@@ -6,7 +6,13 @@ export async function getUserInfo(req, res) {
     const userId = req.user.id;
 
     const result = await pool.query(
-      'SELECT id, username, avatar_url AS "avatarUrl" FROM users WHERE id = $1',
+      `SELECT
+        id,
+        username,
+        avatar_url AS "avatarUrl",
+        status
+       FROM users
+       WHERE id = $1`,
       [userId],
     );
 
@@ -20,6 +26,7 @@ export async function getUserInfo(req, res) {
       id: user.id,
       username: user.username,
       avatarUrl: user.avatarUrl,
+      status: user.status,
     });
   } catch (err) {
     console.error("Error inside getUserInfo controller:", err);

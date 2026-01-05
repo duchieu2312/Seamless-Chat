@@ -27,8 +27,36 @@ const getAvatarColor = (username) => {
   return colors[charCode % colors.length];
 };
 
+const STATUS_CONFIG = {
+  online: {
+    label: "Online",
+    color: "bg-green-500",
+    desc: "Available to chat",
+  },
+  idle: {
+    label: "Idle",
+    color: "bg-amber-500",
+    desc: "Away from keyboard",
+  },
+  dnd: {
+    label: "Do Not Disturb",
+    color: "bg-red-500",
+    desc: "Mute notifications",
+  },
+  invisible: {
+    label: "Invisible",
+    color: "bg-gray-500",
+    desc: "Appear offline to others",
+  },
+  offline: {
+    label: "Offline",
+    color: "bg-gray-500",
+    desc: "Unavailable to chat",
+  },
+};
+
 export default function App() {
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
   const socketRef = useRef(null);
 
   // ==========================================
@@ -393,7 +421,7 @@ export default function App() {
 
   // Fetch initial application data after user authentication
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     Promise.all([
       fetchJoinedServers(),
       fetchConversations({
@@ -407,11 +435,13 @@ export default function App() {
       console.error(err);
       toast.error("Failed to load application data.");
     });
-  }, [user, fetchJoinedServers, fetchConversations, fetchPeople]);
+  }, [user?.id, fetchJoinedServers, fetchConversations, fetchPeople]);
 
   // Initialize Socket.io connection and establish global event listeners
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
+
+    const currentUserId = user.id;
 
     socketRef.current = io("http://localhost:5000", { withCredentials: true });
 
@@ -473,6 +503,21 @@ export default function App() {
     // Handle real-time user presence/status status updates (Online, Idle, Dnb, Invisible & Offline)
     socketRef.current.on("user_status_changed", (data) => {
       const { userId, status } = data;
+
+      if (String(userId) === String(currentUserId)) {
+        setUser((prev) => {
+          if (!prev) return prev;
+
+          const updatedUser = {
+            ...prev,
+            status,
+          };
+
+          localStorage.setItem("user", JSON.stringify(updatedUser));
+
+          return updatedUser;
+        });
+      }
 
       setServerMembers((prevMembers) =>
         prevMembers.map((member) =>
@@ -573,7 +618,8 @@ export default function App() {
       socketRef.current = null;
     };
   }, [
-    user,
+    user?.id,
+    setUser,
     fetchConversations,
     fetchPeople,
     fetchJoinedServers,
@@ -794,6 +840,15 @@ export default function App() {
     },
     [activeServer],
   );
+
+  const handleStatusChange = useCallback((status) => {
+    if (!socketRef.current?.connected) {
+      toast.error("Unable to update status.");
+      return;
+    }
+
+    socketRef.current.emit("update_status", { status });
+  }, []);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -1463,6 +1518,7 @@ export default function App() {
           <SidebarMember
             computedServerRoster={computedServerRoster}
             getAvatarColor={getAvatarColor}
+            statusConfig={STATUS_CONFIG}
             currentUserId={user.id}
             onChat={handleChatUser}
             onAddFriend={handleSendFriendRequest}
@@ -1486,6 +1542,7 @@ export default function App() {
           onSendMessage={handleSendDM}
           isDM={true}
           getAvatarColor={getAvatarColor}
+          statusConfig={STATUS_CONFIG}
           onLoadMore={handleLoadMoreDMMessages}
           hasMore={dmHasMore[activeDM] ?? false}
           loadingMore={loadingMoreDM}
@@ -1507,6 +1564,7 @@ export default function App() {
             onSendFriendRequest={handleSendFriendRequest}
             setConfirmModal={setConfirmModal}
             getAvatarColor={getAvatarColor}
+            statusConfig={STATUS_CONFIG}
             onLoadMore={handleLoadMorePeople}
             onSearch={handlePeopleSearch}
             hasMore={peopleHasMore}
@@ -1565,6 +1623,7 @@ export default function App() {
             activeDM={activeDM}
             onDMClick={handleDMClick}
             getAvatarColor={getAvatarColor}
+            statusConfig={STATUS_CONFIG}
             onChangeServerDetails={handleChangeServerDetails}
             onCreateChannel={handleCreateChannel}
             onRenameChannel={handleRenameChannel}
@@ -1576,7 +1635,8 @@ export default function App() {
           user={user}
           onLogout={handleLogout}
           getAvatarColor={getAvatarColor}
-          onStatusChange
+          statusConfig={STATUS_CONFIG}
+          onStatusChange={handleStatusChange}
         />
       </div>
 

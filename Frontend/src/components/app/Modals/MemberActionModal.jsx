@@ -13,6 +13,7 @@ import { createPortal } from "react-dom";
 
 function MemberActionModal({
   member,
+  getAvatarColor,
   isOpen,
   onClose,
   friendshipStatus,
@@ -72,15 +73,21 @@ function MemberActionModal({
             {/* Header */}
             <div className="flex items-center gap-3 px-5 py-4 border-b border-white/5">
               {/* Avatar */}
-              <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold">
+              <div className="relative w-10 h-10 flex-shrink-0">
                 {member.avatarUrl ? (
                   <img
                     src={member.avatarUrl}
                     alt={member.username}
-                    className="w-full h-full object-cover"
+                    className="w-10 h-10 rounded-full object-cover"
                   />
                 ) : (
-                  member.username?.charAt(0).toUpperCase()
+                  <div
+                    className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarColor(
+                      member.username,
+                    )} flex items-center justify-center font-bold text-white text-sm select-none`}
+                  >
+                    {member.username?.charAt(0).toUpperCase() || "?"}
+                  </div>
                 )}
               </div>
 

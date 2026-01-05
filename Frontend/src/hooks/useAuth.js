@@ -3,8 +3,8 @@ import { useState, useEffect } from "react";
 export default function useAuth() {
   const [user, setUser] = useState(() => {
     try {
-      const cached = localStorage.getItem("user");
-      return cached ? JSON.parse(cached) : null;
+      const cachedUser = localStorage.getItem("user");
+      return cachedUser ? JSON.parse(cachedUser) : null;
     } catch (error) {
       console.error("Error parsing user from localStorage:", error);
       return null;
@@ -13,8 +13,8 @@ export default function useAuth() {
 
   useEffect(() => {
     const handleStorageChange = () => {
-      const cached = localStorage.getItem("user");
-      setUser(cached ? JSON.parse(cached) : null);
+      const cachedUser = localStorage.getItem("user");
+      setUser(cachedUser ? JSON.parse(cachedUser) : null);
     };
 
     window.addEventListener("storage", handleStorageChange);
