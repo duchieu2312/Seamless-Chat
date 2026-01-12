@@ -11,6 +11,7 @@ import {
 import { toast } from "sonner";
 import ChangeServerDetailsModal from "./Modals/ChangeServerDetailsModal";
 import ChangeChannelsModal from "./Modals/ChangeChannelsModal";
+import { getAvatarUrl } from "../../utils/avatar";
 
 const homeItems = [
   { id: "home", icon: FiHome, label: "Home" },
@@ -244,7 +245,7 @@ function ServerBar({
                         <div key={i} className="relative select-none">
                           {userInVoice.avatarUrl ? (
                             <img
-                              src={userInVoice.avatarUrl}
+                              src={getAvatarUrl(userInVoice.avatarUrl, 50)}
                               alt={userInVoice.username}
                               className="w-5 h-5 rounded-full object-cover border border-[#1e293b]"
                             />
@@ -326,7 +327,7 @@ function ServerBar({
                       <div className="relative flex-shrink-0">
                         {conversation.avatarUrl ? (
                           <img
-                            src={conversation.avatarUrl}
+                            src={getAvatarUrl(conversation.avatarUrl, 100)}
                             alt={conversation.username}
                             className="w-10 h-10 rounded-full object-cover"
                           />

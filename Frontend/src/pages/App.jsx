@@ -542,6 +542,94 @@ export default function App() {
       );
     });
 
+    // Handle real-time user avatar updates
+    socketRef.current.on("user_avatar_changed", (data) => {
+      const { userId, avatarUrl } = data;
+
+      if (String(userId) === String(currentUserId)) {
+        setUser((prev) => {
+          if (!prev) return prev;
+
+          const updatedUser = {
+            ...prev,
+            avatarUrl,
+          };
+
+          localStorage.setItem("user", JSON.stringify(updatedUser));
+
+          return updatedUser;
+        });
+      }
+
+      setServerMembers((prevMembers) =>
+        prevMembers.map((member) =>
+          String(member.id) === String(userId)
+            ? { ...member, avatarUrl }
+            : member,
+        ),
+      );
+
+      setFriends((prevFriends) =>
+        prevFriends.map((friend) =>
+          String(friend.id) === String(userId)
+            ? { ...friend, avatarUrl }
+            : friend,
+        ),
+      );
+
+      setConversations((prevConversations) =>
+        prevConversations.map((conversation) =>
+          String(conversation.userId) === String(userId)
+            ? { ...conversation, avatarUrl }
+            : conversation,
+        ),
+      );
+    });
+
+    // Handle real-time user profile/username updates
+    socketRef.current.on("user_profile_changed", (data) => {
+      const { userId, username } = data;
+
+      if (String(userId) === String(currentUserId)) {
+        setUser((prev) => {
+          if (!prev) return prev;
+
+          const updatedUser = {
+            ...prev,
+            username,
+          };
+
+          localStorage.setItem("user", JSON.stringify(updatedUser));
+
+          return updatedUser;
+        });
+      }
+
+      setServerMembers((prevMembers) =>
+        prevMembers.map((member) =>
+          String(member.id) === String(userId)
+            ? { ...member, username }
+            : member,
+        ),
+      );
+
+      setFriends((prevFriends) =>
+        prevFriends.map((friend) =>
+          String(friend.id) === String(userId)
+            ? { ...friend, username }
+            : friend,
+        ),
+      );
+
+      setConversations((prevConversations) =>
+        prevConversations.map((conversation) =>
+          String(conversation.userId) === String(userId)
+            ? { ...conversation, username }
+            : conversation,
+        ),
+      );
+    });
+
     socketRef.current.on("conversations_updated", () => {
       fetchConversations();
     });

@@ -16,6 +16,7 @@ export default function ProtectedRoute({ children }) {
           "user",
           JSON.stringify({
             id: data.id,
+            email: data.email,
             username: data.username,
             avatarUrl: data.avatarUrl,
             status: data.status,

@@ -15,6 +15,9 @@ import {
 } from "./controllers/authController.js";
 import {
   getUserInfo,
+  updateAvatar,
+  updateProfile,
+  updatePassword,
   getConversations,
   getConversationByUser,
   getFriends,
@@ -76,6 +79,9 @@ app.post("/api/auth/refresh", refreshLimiter, refreshToken);
 
 // USER ROUTES
 app.get("/api/users/me", authenticateToken, getUserInfo);
+app.put("/api/users/me/avatar", authenticateToken, updateAvatar);
+app.put("/api/users/me/profile", authenticateToken, updateProfile);
+app.put("/api/users/me/password", authenticateToken, updatePassword);
 app.get("/api/users/conversations", authenticateToken, getConversations);
 app.get(
   "/api/users/:userId/conversation",

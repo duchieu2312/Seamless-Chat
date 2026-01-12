@@ -1,6 +1,7 @@
 import { FiUsers } from "react-icons/fi";
 import React, { useCallback, useState } from "react";
 import MemberActionModal from "./Modals/MemberActionModal";
+import { getAvatarUrl } from "../../utils/avatar";
 
 function SidebarMember({
   computedServerRoster,
@@ -58,7 +59,7 @@ function SidebarMember({
         <div className="relative w-10 h-10 flex-shrink-0">
           {member.avatarUrl ? (
             <img
-              src={member.avatarUrl}
+              src={getAvatarUrl(member.avatarUrl, 100)}
               alt={member.username}
               className="w-10 h-10 rounded-full object-cover"
             />

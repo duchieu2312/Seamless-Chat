@@ -1,4 +1,5 @@
 import pool from "../config/db.js";
+import bcrypt from "bcryptjs";
 import { getIO } from "../socket.js";
 
 export async function getUserInfo(req, res) {
@@ -8,6 +9,7 @@ export async function getUserInfo(req, res) {
     const result = await pool.query(
       `SELECT
         id,
+        email,
         username,
         avatar_url AS "avatarUrl",
         status
@@ -24,12 +26,203 @@ export async function getUserInfo(req, res) {
 
     return res.json({
       id: user.id,
+      email: user.email,
       username: user.username,
       avatarUrl: user.avatarUrl,
       status: user.status,
     });
   } catch (err) {
     console.error("Error inside getUserInfo controller:", err);
+    return res.sendStatus(500);
+  }
+}
+
+export async function updateAvatar(req, res) {
+  try {
+    const userId = req.user.id;
+    const { avatarUrl } = req.body;
+
+    if (!avatarUrl || typeof avatarUrl !== "string") {
+      return res.status(400).json({ message: "Avatar URL is required." });
+    }
+
+    const trimmedAvatarUrl = avatarUrl.trim();
+
+    if (!trimmedAvatarUrl) {
+      return res.status(400).json({ message: "Avatar URL is required." });
+    }
+
+    try {
+      const url = new URL(trimmedAvatarUrl);
+
+      if (!["http:", "https:"].includes(url.protocol)) {
+        return res
+          .status(400)
+          .json({ message: "Avatar URL must use HTTP or HTTPS." });
+      }
+    } catch {
+      return res.status(400).json({ message: "Invalid avatar URL." });
+    }
+
+    const result = await pool.query(
+      `UPDATE users
+       SET avatar_url = $1
+       WHERE id = $2
+       RETURNING
+         id,
+         username,
+         avatar_url AS "avatarUrl",
+         status`,
+      [trimmedAvatarUrl, userId],
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const user = result.rows[0];
+
+    const io = getIO();
+
+    io.emit("user_avatar_changed", {
+      userId: user.id,
+      avatarUrl: user.avatarUrl,
+    });
+
+    return res.json({
+      message: "Avatar updated successfully.",
+      avatarUrl: user.avatarUrl,
+    });
+  } catch (err) {
+    console.error("Error inside updateAvatar controller:", err);
+    return res.sendStatus(500);
+  }
+}
+
+export async function updateProfile(req, res) {
+  try {
+    const userId = req.user.id;
+    const { username } = req.body;
+
+    if (!username || typeof username !== "string") {
+      return res.status(400).json({ message: "Username is required." });
+    }
+
+    const trimmedUsername = username.trim();
+
+    if (!trimmedUsername) {
+      return res.status(400).json({ message: "Username is required." });
+    }
+
+    if (trimmedUsername.length < 3 || trimmedUsername.length > 30) {
+      return res
+        .status(400)
+        .json({ message: "Username must be between 3 and 30 characters." });
+    }
+
+    const result = await pool.query(
+      `UPDATE users
+       SET username = $1
+       WHERE id = $2
+       RETURNING
+         id,
+         username`,
+      [trimmedUsername, userId],
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const user = result.rows[0];
+
+    const io = getIO();
+
+    io.emit("user_profile_changed", {
+      userId: user.id,
+      username: user.username,
+    });
+
+    return res.json({
+      message: "Username updated successfully.",
+      username: user.username,
+    });
+  } catch (err) {
+    if (err.code === "23505") {
+      return res.status(409).json({ message: "Username is already taken." });
+    }
+
+    console.error("Error inside updateProfile controller:", err);
+    return res.sendStatus(500);
+  }
+}
+
+export async function updatePassword(req, res) {
+  try {
+    const userId = req.user.id;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res
+        .status(400)
+        .json({ message: "Current password and new password are required." });
+    }
+
+    if (
+      typeof currentPassword !== "string" ||
+      typeof newPassword !== "string"
+    ) {
+      return res.status(400).json({ message: "Invalid password." });
+    }
+
+    if (newPassword.length < 8) {
+      return res
+        .status(400)
+        .json({ message: "New password must be at least 8 characters." });
+    }
+
+    if (currentPassword === newPassword) {
+      return res.status(400).json({
+        message: "New password must be different from the current password.",
+      });
+    }
+
+    const result = await pool.query(
+      `SELECT password_hash
+       FROM users
+       WHERE id = $1`,
+      [userId],
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const user = result.rows[0];
+
+    const isPasswordValid = await bcrypt.compare(
+      currentPassword,
+      user.password_hash,
+    );
+
+    if (!isPasswordValid) {
+      return res
+        .status(401)
+        .json({ message: "Current password is incorrect." });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    await pool.query(
+      `UPDATE users
+       SET password_hash = $1
+       WHERE id = $2`,
+      [passwordHash, userId],
+    );
+
+    return res.json({ message: "Password updated successfully." });
+  } catch (err) {
+    console.error("Error inside updatePassword controller:", err);
     return res.sendStatus(500);
   }
 }
@@ -138,7 +331,17 @@ export async function getConversationByUser(req, res) {
        JOIN users u
          ON u.id = $2
        WHERE c.user_one_id = $3
-         AND c.user_two_id = $4`,
+         AND c.user_two_id = $4
+         AND EXISTS (
+           SELECT 1
+           FROM friendships f
+           WHERE (
+             (f.user_id = $1 AND f.friend_id = $2)
+             OR
+             (f.user_id = $2 AND f.friend_id = $1)
+           )
+           AND f.status = 'accepted'
+         )`,
       [userId, targetUserId, userOneId, userTwoId],
     );
 

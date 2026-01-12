@@ -11,6 +11,7 @@ import {
   FiCheck,
 } from "react-icons/fi";
 import React, { useEffect, useRef, useState } from "react";
+import { getAvatarUrl } from "../../utils/avatar";
 
 function PeopleView({
   friends = [],
@@ -205,7 +206,7 @@ function PeopleView({
                       <div className="relative flex-shrink-0">
                         {friend.avatarUrl ? (
                           <img
-                            src={friend.avatarUrl}
+                            src={getAvatarUrl(friend.avatarUrl, 120)}
                             alt={friend.username}
                             className="w-12 h-12 rounded-full object-cover"
                           />
@@ -309,7 +310,7 @@ function PeopleView({
                       <div className="relative flex-shrink-0">
                         {reqUser.avatarUrl ? (
                           <img
-                            src={reqUser.avatarUrl}
+                            src={getAvatarUrl(reqUser.avatarUrl, 120)}
                             alt={reqUser.username}
                             className="w-12 h-12 rounded-full object-cover"
                           />
@@ -388,7 +389,7 @@ function PeopleView({
                       <div className="relative flex-shrink-0">
                         {user.avatarUrl ? (
                           <img
-                            src={user.avatarUrl}
+                            src={getAvatarUrl(user.avatarUrl, 120)}
                             alt={user.username}
                             className="w-12 h-12 rounded-full object-cover"
                           />

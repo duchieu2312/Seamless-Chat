@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { getAvatarUrl } from "../../../utils/avatar";
 
 function MessageList({
   messages,
@@ -132,7 +133,7 @@ function MessageList({
         <div key={msg.id} className="flex gap-3">
           {msg.avatarUrl ? (
             <img
-              src={msg.avatarUrl}
+              src={getAvatarUrl(msg.avatarUrl, 100)}
               alt={msg.username}
               className="w-10 h-10 rounded-full object-cover"
             />

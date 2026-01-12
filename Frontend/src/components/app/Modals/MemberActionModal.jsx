@@ -10,6 +10,7 @@ import {
 } from "react-icons/fi";
 import React from "react";
 import { createPortal } from "react-dom";
+import { getAvatarUrl } from "../../../utils/avatar";
 
 function MemberActionModal({
   member,
@@ -73,18 +74,18 @@ function MemberActionModal({
             {/* Header */}
             <div className="flex items-center gap-3 px-5 py-4 border-b border-white/5">
               {/* Avatar */}
-              <div className="relative w-10 h-10 flex-shrink-0">
+              <div className="relative w-16 h-16 flex-shrink-0">
                 {member.avatarUrl ? (
                   <img
-                    src={member.avatarUrl}
+                    src={getAvatarUrl(member.avatarUrl, 160)}
                     alt={member.username}
-                    className="w-10 h-10 rounded-full object-cover"
+                    className="w-16 h-16 rounded-full object-cover"
                   />
                 ) : (
                   <div
-                    className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarColor(
+                    className={`w-16 h-16 rounded-full bg-gradient-to-br ${getAvatarColor(
                       member.username,
-                    )} flex items-center justify-center font-bold text-white text-sm select-none`}
+                    )} flex items-center justify-center font-bold text-white text-3xl select-none`}
                   >
                     {member.username?.charAt(0).toUpperCase() || "?"}
                   </div>

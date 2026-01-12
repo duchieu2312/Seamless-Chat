@@ -1,6 +1,15 @@
 import { useState, useEffect, useRef } from "react";
-import { FiMic, FiMicOff, FiHeadphones, FiLogOut } from "react-icons/fi";
+import {
+  FiMic,
+  FiMicOff,
+  FiHeadphones,
+  FiLogOut,
+  FiUser,
+  FiSettings,
+} from "react-icons/fi";
 import React from "react";
+import ProfileModal from "./Modals/ProfileModal";
+import { getAvatarUrl } from "../../utils/avatar";
 
 function UserPanel({
   user,
@@ -14,10 +23,13 @@ function UserPanel({
   const [isMuted, setIsMuted] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
   const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
-
-  const [currentStatus, setCurrentStatus] = useState(user?.status || "offline");
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   const menuRef = useRef(null);
+  const accountMenuRef = useRef(null);
+
+  const [currentStatus, setCurrentStatus] = useState(user?.status || "offline");
 
   useEffect(() => {
     if (user?.status) {
@@ -29,6 +41,13 @@ function UserPanel({
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setIsStatusMenuOpen(false);
+      }
+
+      if (
+        accountMenuRef.current &&
+        !accountMenuRef.current.contains(event.target)
+      ) {
+        setIsAccountMenuOpen(false);
       }
     };
 
@@ -79,7 +98,7 @@ function UserPanel({
         <div className="relative flex-shrink-0">
           {user?.avatarUrl ? (
             <img
-              src={user.avatarUrl}
+              src={getAvatarUrl(user.avatarUrl, 100)}
               alt={user.username}
               className="w-10 h-10 rounded-full object-cover"
             />
@@ -189,17 +208,74 @@ function UserPanel({
           )}
         </button>
 
-        <button
-          onClick={onLogout}
-          className="p-2 hover:bg-red-500/20 rounded-lg transition-colors group"
-          title="Log Out"
-        >
-          <FiLogOut
-            size={16}
-            className="text-gray-400 group-hover:text-red-400 transition-colors"
-          />
-        </button>
+        <div ref={accountMenuRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setIsAccountMenuOpen((prev) => !prev)}
+            className={`p-2 rounded-lg transition-colors group ${
+              isAccountMenuOpen ? "bg-white/10" : "hover:bg-white/5"
+            }`}
+            title="Account"
+          >
+            <FiSettings
+              size={16}
+              className={`transition-colors ${
+                isAccountMenuOpen
+                  ? "text-white"
+                  : "text-gray-400 group-hover:text-white"
+              }`}
+            />
+          </button>
+
+          {isAccountMenuOpen && (
+            <div className="absolute bottom-12 right-0 w-52 bg-[#1e293b] border border-white/10 rounded-2xl p-2 shadow-2xl shadow-black/80 z-[99999]">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAccountMenuOpen(false);
+                  setIsProfileModalOpen(true);
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
+              >
+                <FiUser size={16} />
+
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold">Edit Profile</p>
+                  <p className="text-[11px] text-gray-500">
+                    Manage your account
+                  </p>
+                </div>
+              </button>
+
+              <div className="h-px bg-white/5 my-1" />
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAccountMenuOpen(false);
+                  onLogout?.();
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-red-400 hover:bg-red-500/10 transition-colors"
+              >
+                <FiLogOut size={16} />
+
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold">Log Out</p>
+                  <p className="text-[11px] text-red-400/60">
+                    Sign out of this account
+                  </p>
+                </div>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+      <ProfileModal
+        isOpen={isProfileModalOpen}
+        user={user}
+        getAvatarColor={getAvatarColor}
+        onClose={() => setIsProfileModalOpen(false)}
+      />
     </div>
   );
 }
