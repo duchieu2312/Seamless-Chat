@@ -1125,14 +1125,10 @@ export default function App() {
         });
 
         toast.success(`Sent friend request to ${targetUsername}`);
-
-        return true;
       } catch (err) {
         toast.error(
           err.response?.data?.message || "Failed to send friend request.",
         );
-
-        return false;
       }
     },
     [],
@@ -1271,6 +1267,50 @@ export default function App() {
     [conversations, handleDMClick],
   );
 
+  const handleUpdateAvatar = useCallback(async (avatarUrl) => {
+    try {
+      await axiosInstance.put("/users/me/avatar", {
+        avatarUrl,
+      });
+
+      toast.success("Avatar updated successfully.");
+
+      return true;
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to update avatar.");
+
+      return false;
+    }
+  }, []);
+
+  const handleUpdateProfile = useCallback(async (profileData) => {
+    try {
+      await axiosInstance.put("/users/me/profile", profileData);
+
+      return true;
+    } catch (err) {
+      if (err.response?.data?.code === "USERNAME_TAKEN") {
+        return "USERNAME_TAKEN";
+      }
+
+      toast.error(err.response?.data?.message || "Failed to update profile.");
+
+      return false;
+    }
+  }, []);
+
+  const handleUpdatePassword = useCallback(async (passwordData) => {
+    try {
+      await axiosInstance.put("/users/me/password", passwordData);
+
+      return true;
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to update password.");
+
+      return false;
+    }
+  }, []);
+
   // Server Action Events
   const handleLoadMoreCommunities = useCallback(() => {
     if (communityLoading || !communityHasMore) return;
@@ -1324,6 +1364,24 @@ export default function App() {
     } catch (err) {
       toast.error(
         err.response?.data?.message || "Failed to join server by code.",
+      );
+
+      return false;
+    }
+  }, []);
+
+  const handleChangeServerIcon = useCallback(async (serverId, iconUrl) => {
+    try {
+      await axiosInstance.put(`/servers/${serverId}/changeIcon`, {
+        iconUrl,
+      });
+
+      toast.success("Icon updated successfully.");
+
+      return true;
+    } catch (err) {
+      toast.error(
+        err.response?.data?.message || "Failed to update server icon",
       );
 
       return false;
@@ -1529,12 +1587,8 @@ export default function App() {
         );
 
         toast.success("Channel deleted successfully.");
-
-        return true;
       } catch (err) {
         toast.error(err.response?.data?.message || "Failed to delete channel.");
-
-        return false;
       }
     },
     [activeServer],
@@ -1712,6 +1766,7 @@ export default function App() {
             onDMClick={handleDMClick}
             getAvatarColor={getAvatarColor}
             statusConfig={STATUS_CONFIG}
+            onChangeServerIcon={handleChangeServerIcon}
             onChangeServerDetails={handleChangeServerDetails}
             onCreateChannel={handleCreateChannel}
             onRenameChannel={handleRenameChannel}
@@ -1725,6 +1780,9 @@ export default function App() {
           getAvatarColor={getAvatarColor}
           statusConfig={STATUS_CONFIG}
           onStatusChange={handleStatusChange}
+          onUpdateAvatar={handleUpdateAvatar}
+          onUpdateProfile={handleUpdateProfile}
+          onUpdatePassword={handleUpdatePassword}
         />
       </div>
 

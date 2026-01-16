@@ -1,12 +1,13 @@
 CREATE TABLE users (
 	id UUID DEFAULT uuidv7() PRIMARY KEY,
 	email TEXT UNIQUE NOT NULL,
-	username TEXT UNIQUE NOT NULL,
+	username TEXT NOT NULL,
 	password_hash TEXT NOT NULL,
 	avatar_url TEXT,
 	status TEXT DEFAULT 'offline',
 	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
+	CONSTRAINT username_unique UNIQUE (name)
 	CONSTRAINT check_user_status	CHECK (status IN ('online', 'idle', 'dnd', 'invisible', 'offline'))
 );
 

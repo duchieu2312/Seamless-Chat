@@ -324,6 +324,79 @@ export async function getServerMembers(req, res) {
   }
 }
 
+export async function updateServerIcon(req, res) {
+  try {
+    const userId = req.user.id;
+    const { serverId } = req.params;
+    const cleanServerId = Number(serverId);
+
+    if (!Number.isInteger(cleanServerId) || cleanServerId <= 0) {
+      return res.status(400).json({ message: "Invalid server ID format." });
+    }
+
+    const { iconUrl } = req.body;
+
+    if (!iconUrl || typeof iconUrl !== "string") {
+      return res.status(400).json({ message: "Server icon URL is required." });
+    }
+
+    const cleanIconUrl = iconUrl.trim();
+
+    if (!cleanIconUrl) {
+      return res.status(400).json({ message: "Server icon URL is required." });
+    }
+
+    try {
+      const url = new URL(cleanIconUrl);
+
+      if (!["http:", "https:"].includes(url.protocol)) {
+        return res
+          .status(400)
+          .json({ message: "Server icon URL must use HTTP or HTTPS." });
+      }
+    } catch {
+      return res.status(400).json({ message: "Invalid server icon URL." });
+    }
+
+    const result = await pool.query(
+      `UPDATE servers
+       SET icon_url = $1
+       WHERE id = $2
+       AND owner_id = $3
+       RETURNING
+         id,
+         name,
+         icon_url AS "iconUrl",
+         description,
+         invite_code AS "inviteCode",
+         is_public AS "isPublic",
+         owner_id AS "ownerId"`,
+      [cleanIconUrl, cleanServerId, userId],
+    );
+
+    if (result.rowCount === 0) {
+      return res
+        .status(404)
+        .json({ message: "Server not found or you are not the owner." });
+    }
+
+    const server = result.rows[0];
+
+    const io = getIO();
+
+    io.to(`server_${cleanServerId}`).emit("servers_updated");
+    io.to(`server_${cleanServerId}`).emit("communities_updated");
+
+    return res.json({
+      message: "Server icon updated successfully.",
+      server,
+    });
+  } catch (err) {
+    console.error("Error inside updateServerIcon controller:", err);
+    return res.sendStatus(500);
+  }
+}
+
 export async function updateServerDetails(req, res) {
   try {
     const userId = req.user.id;

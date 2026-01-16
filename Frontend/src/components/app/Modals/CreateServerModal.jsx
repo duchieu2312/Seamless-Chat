@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiX } from "react-icons/fi";
+import { FiX, FiCamera } from "react-icons/fi";
 import React from "react";
+import { toast } from "sonner";
+import { uploadServerIcon } from "../../../api/cloudinary";
+import { getCloudinaryImageUrl } from "../../../utils/CloudinaryImageUrl";
 
 function CreateServerModal({ isOpen, onClose, onCreateServer }) {
   const [serverName, setServerName] = useState("");
@@ -10,6 +13,27 @@ function CreateServerModal({ isOpen, onClose, onCreateServer }) {
   const [isPublic, setIsPublic] = useState(true);
   const [nameError, setNameError] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [iconUrl, setIconUrl] = useState(null);
+  const [isUploadingIcon, setIsUploadingIcon] = useState(false);
+
+  const handleIconChange = async (e) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    try {
+      setIsUploadingIcon(true);
+
+      const uploadedIconUrl = await uploadServerIcon(file);
+
+      setIconUrl(uploadedIconUrl);
+    } catch (err) {
+      toast.error(err.message || "Failed to upload server icon.");
+    } finally {
+      setIsUploadingIcon(false);
+      e.target.value = "";
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -24,8 +48,8 @@ function CreateServerModal({ isOpen, onClose, onCreateServer }) {
     try {
       if (onCreateServer) {
         const result = await onCreateServer({
+          iconUrl,
           name: cleanName,
-          iconUrl: null,
           description: description.trim() || null,
           isPublic,
         });
@@ -40,6 +64,7 @@ function CreateServerModal({ isOpen, onClose, onCreateServer }) {
         }
       }
 
+      setIconUrl(null);
       setServerName("");
       setDescription("");
       setIsPublic(true);
@@ -60,12 +85,14 @@ function CreateServerModal({ isOpen, onClose, onCreateServer }) {
   };
 
   const handleClose = () => {
-    if (processing) return;
+    if (processing || isUploadingIcon) return;
 
+    setIconUrl(null);
     setServerName("");
     setDescription("");
     setIsPublic(true);
     setNameError(false);
+
     onClose();
   };
 
@@ -115,6 +142,49 @@ function CreateServerModal({ isOpen, onClose, onCreateServer }) {
 
             {/* Creation Form Context */}
             <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Server Icon */}
+              <div className="flex flex-col items-center">
+                <div className="relative">
+                  {iconUrl ? (
+                    <img
+                      src={getCloudinaryImageUrl(iconUrl, 200)}
+                      alt="Server icon"
+                      className="w-20 h-20 rounded-2xl object-cover"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 rounded-2xl bg-black/20 border border-white/10 flex items-center justify-center text-gray-500">
+                      <FiCamera size={24} />
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      document.getElementById("server-icon-input")?.click()
+                    }
+                    disabled={processing || isUploadingIcon}
+                    className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 flex items-center justify-center text-white shadow-lg transition-colors"
+                    title="Change server icon"
+                  >
+                    <FiCamera size={14} />
+                  </button>
+
+                  <input
+                    id="server-icon-input"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={handleIconChange}
+                    className="hidden"
+                  />
+                </div>
+
+                <p className="mt-3 text-xs text-gray-500">
+                  {isUploadingIcon
+                    ? "Uploading icon..."
+                    : "PNG, JPG or WebP. Maximum 5 MB."}
+                </p>
+              </div>
+
               {/* Server Name */}
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
@@ -195,7 +265,7 @@ function CreateServerModal({ isOpen, onClose, onCreateServer }) {
                 </button>
                 <button
                   type="submit"
-                  disabled={!serverName.trim() || processing}
+                  disabled={!serverName.trim() || processing || isUploadingIcon}
                   className="px-5 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 disabled:hover:bg-indigo-500 disabled:cursor-not-allowed font-semibold text-white text-sm transition-all shadow-md shadow-indigo-500/10"
                 >
                   {processing ? "Creating..." : "Create"}

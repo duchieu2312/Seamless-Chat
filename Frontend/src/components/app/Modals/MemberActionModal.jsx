@@ -10,7 +10,7 @@ import {
 } from "react-icons/fi";
 import React from "react";
 import { createPortal } from "react-dom";
-import { getAvatarUrl } from "../../../utils/avatar";
+import { getCloudinaryImageUrl } from "../../../utils/CloudinaryImageUrl";
 
 function MemberActionModal({
   member,
@@ -77,7 +77,7 @@ function MemberActionModal({
               <div className="relative w-16 h-16 flex-shrink-0">
                 {member.avatarUrl ? (
                   <img
-                    src={getAvatarUrl(member.avatarUrl, 160)}
+                    src={getCloudinaryImageUrl(member.avatarUrl, 160)}
                     alt={member.username}
                     className="w-16 h-16 rounded-full object-cover"
                   />

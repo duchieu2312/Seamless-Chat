@@ -9,7 +9,7 @@ import {
 } from "react-icons/fi";
 import React from "react";
 import ProfileModal from "./Modals/ProfileModal";
-import { getAvatarUrl } from "../../utils/avatar";
+import { getCloudinaryImageUrl } from "../../utils/CloudinaryImageUrl";
 
 function UserPanel({
   user,
@@ -17,6 +17,9 @@ function UserPanel({
   getAvatarColor,
   statusConfig,
   onStatusChange,
+  onUpdateAvatar,
+  onUpdateProfile,
+  onUpdatePassword,
 }) {
   const STATUS_OPTIONS = ["online", "idle", "dnd", "invisible"];
 
@@ -98,7 +101,7 @@ function UserPanel({
         <div className="relative flex-shrink-0">
           {user?.avatarUrl ? (
             <img
-              src={getAvatarUrl(user.avatarUrl, 100)}
+              src={getCloudinaryImageUrl(user.avatarUrl, 100)}
               alt={user.username}
               className="w-10 h-10 rounded-full object-cover"
             />
@@ -275,6 +278,9 @@ function UserPanel({
         user={user}
         getAvatarColor={getAvatarColor}
         onClose={() => setIsProfileModalOpen(false)}
+        onUpdateAvatar={onUpdateAvatar}
+        onUpdateProfile={onUpdateProfile}
+        onUpdatePassword={onUpdatePassword}
       />
     </div>
   );

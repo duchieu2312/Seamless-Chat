@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { FiHome, FiPlus } from "react-icons/fi";
 import React, { useState } from "react";
 import CreateServerModal from "./Modals/CreateServerModal";
+import { getCloudinaryImageUrl } from "../../utils/CloudinaryImageUrl";
 
 function Sidebar({
   currentSpace,
@@ -82,7 +83,7 @@ function Sidebar({
               {/* Server Icon */}
               {server.iconUrl ? (
                 <img
-                  src={server.iconUrl}
+                  src={getCloudinaryImageUrl(server.iconUrl, 140)}
                   alt={server.name}
                   className="w-14 h-14 rounded-2xl object-cover"
                 />

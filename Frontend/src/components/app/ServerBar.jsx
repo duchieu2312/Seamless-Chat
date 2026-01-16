@@ -11,7 +11,7 @@ import {
 import { toast } from "sonner";
 import ChangeServerDetailsModal from "./Modals/ChangeServerDetailsModal";
 import ChangeChannelsModal from "./Modals/ChangeChannelsModal";
-import { getAvatarUrl } from "../../utils/avatar";
+import { getCloudinaryImageUrl } from "../../utils/CloudinaryImageUrl";
 
 const homeItems = [
   { id: "home", icon: FiHome, label: "Home" },
@@ -38,6 +38,7 @@ function ServerBar({
   onDMClick,
   getAvatarColor,
   statusConfig,
+  onChangeServerIcon,
   onChangeServerDetails,
   onCreateChannel,
   onRenameChannel,
@@ -245,7 +246,10 @@ function ServerBar({
                         <div key={i} className="relative select-none">
                           {userInVoice.avatarUrl ? (
                             <img
-                              src={getAvatarUrl(userInVoice.avatarUrl, 50)}
+                              src={getCloudinaryImageUrl(
+                                userInVoice.avatarUrl,
+                                50,
+                              )}
                               alt={userInVoice.username}
                               className="w-5 h-5 rounded-full object-cover border border-[#1e293b]"
                             />
@@ -327,7 +331,10 @@ function ServerBar({
                       <div className="relative flex-shrink-0">
                         {conversation.avatarUrl ? (
                           <img
-                            src={getAvatarUrl(conversation.avatarUrl, 100)}
+                            src={getCloudinaryImageUrl(
+                              conversation.avatarUrl,
+                              100,
+                            )}
                             alt={conversation.username}
                             className="w-10 h-10 rounded-full object-cover"
                           />
@@ -385,6 +392,7 @@ function ServerBar({
         isOpen={isChangeDetailsModalOpen}
         onClose={() => setIsChangeDetailsModalOpen(false)}
         server={server}
+        onUpdateServerIcon={onChangeServerIcon}
         onUpdateServer={onChangeServerDetails}
       />
       <ChangeChannelsModal

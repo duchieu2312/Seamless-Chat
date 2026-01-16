@@ -1,17 +1,17 @@
-export function getAvatarUrl(avatarUrl, size = 200) {
-  if (!avatarUrl) return null;
+export function getCloudinaryImageUrl(imageUrl, size = 200) {
+  if (!imageUrl) return null;
 
   try {
-    const url = new URL(avatarUrl);
+    const url = new URL(imageUrl);
 
     if (!url.hostname.includes("res.cloudinary.com")) {
-      return avatarUrl;
+      return imageUrl;
     }
 
     const uploadIndex = url.pathname.indexOf("/image/upload/");
 
     if (uploadIndex === -1) {
-      return avatarUrl;
+      return imageUrl;
     }
 
     const transformation = `w_${size},h_${size},c_fill,g_face,q_auto,f_auto,dpr_auto`;
@@ -23,6 +23,6 @@ export function getAvatarUrl(avatarUrl, size = 200) {
 
     return url.toString();
   } catch {
-    return avatarUrl;
+    return imageUrl;
   }
 }

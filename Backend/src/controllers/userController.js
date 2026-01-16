@@ -148,7 +148,7 @@ export async function updateProfile(req, res) {
       username: user.username,
     });
   } catch (err) {
-    if (err.code === "23505") {
+    if (err.code === "username_unique") {
       return res.status(409).json({ message: "Username is already taken." });
     }
 

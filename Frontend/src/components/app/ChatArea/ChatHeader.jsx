@@ -1,7 +1,7 @@
 import { FiHash } from "react-icons/fi";
 import { HiChatBubbleLeftRight } from "react-icons/hi2";
 import React from "react";
-import { getAvatarUrl } from "../../../utils/avatar";
+import { getCloudinaryImageUrl } from "../../../utils/CloudinaryImageUrl";
 
 function ChatHeader({ channel, isDM, getAvatarColor, statusConfig }) {
   const displayName = channel?.name ?? channel?.username;
@@ -12,7 +12,7 @@ function ChatHeader({ channel, isDM, getAvatarColor, statusConfig }) {
         <div className="relative flex-shrink-0">
           {channel?.avatarUrl ? (
             <img
-              src={getAvatarUrl(channel.avatarUrl, 120)}
+              src={getCloudinaryImageUrl(channel.avatarUrl, 120)}
               alt={channel.username}
               className="w-12 h-12 rounded-full object-cover"
             />

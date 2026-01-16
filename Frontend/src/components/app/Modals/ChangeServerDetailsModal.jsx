@@ -1,25 +1,60 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiX } from "react-icons/fi";
+import { FiX, FiCamera } from "react-icons/fi";
 import React from "react";
+import { toast } from "sonner";
+import { uploadServerIcon } from "../../../api/cloudinary";
+import { getCloudinaryImageUrl } from "../../../utils/CloudinaryImageUrl";
 
-function ChangeServerDetailsModal({ isOpen, onClose, server, onUpdateServer }) {
+function ChangeServerDetailsModal({
+  isOpen,
+  onClose,
+  server,
+  onUpdateServerIcon,
+  onUpdateServer,
+}) {
   const [serverName, setServerName] = useState("");
   const [description, setDescription] = useState("");
   const [isPublic, setIsPublic] = useState(true);
   const [nameError, setNameError] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [iconUrl, setIconUrl] = useState(null);
+  const [isUploadingIcon, setIsUploadingIcon] = useState(false);
 
   // Sync form values with the current server when the modal opens
   useEffect(() => {
     if (!isOpen || !server) return;
 
+    setIconUrl(server.iconUrl || null);
     setServerName(server.name || "");
     setDescription(server.description || "");
     setIsPublic(server.isPublic ?? true);
     setNameError(false);
   }, [isOpen, server]);
+
+  const handleIconChange = async (e) => {
+    const file = e.target.files?.[0];
+
+    if (!file || !server?.id) return;
+
+    try {
+      setIsUploadingIcon(true);
+
+      const uploadedIconUrl = await uploadServerIcon(file);
+
+      const result = await onUpdateServerIcon(server.id, uploadedIconUrl);
+
+      if (result) {
+        setIconUrl(uploadedIconUrl);
+      }
+    } catch (err) {
+      toast.error(err.message || "Failed to upload server icon.");
+    } finally {
+      setIsUploadingIcon(false);
+      e.target.value = "";
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -117,6 +152,51 @@ function ChangeServerDetailsModal({ isOpen, onClose, server, onUpdateServer }) {
 
             {/* Changing Form Context */}
             <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Server Icon */}
+              <div className="flex flex-col items-center">
+                <div className="relative">
+                  {iconUrl ? (
+                    <img
+                      src={getCloudinaryImageUrl(iconUrl, 200)}
+                      alt={server?.name || "Server icon"}
+                      className="w-20 h-20 rounded-2xl object-cover"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 rounded-2xl bg-black/20 border border-white/10 flex items-center justify-center text-gray-500">
+                      <FiCamera size={24} />
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      document
+                        .getElementById("change-server-icon-input")
+                        ?.click()
+                    }
+                    disabled={processing || isUploadingIcon}
+                    className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 flex items-center justify-center text-white shadow-lg transition-colors"
+                    title="Change server icon"
+                  >
+                    <FiCamera size={14} />
+                  </button>
+
+                  <input
+                    id="change-server-icon-input"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={handleIconChange}
+                    className="hidden"
+                  />
+                </div>
+
+                <p className="mt-3 text-xs text-gray-500">
+                  {isUploadingIcon
+                    ? "Uploading icon..."
+                    : "PNG, JPG or WebP. Maximum 5 MB."}
+                </p>
+              </div>
+
               {/* Server Name */}
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">

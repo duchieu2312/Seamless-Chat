@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { FiSearch } from "react-icons/fi";
 import { toast } from "sonner";
 import JoinServerByCodeModal from "./Modals/JoinServerByCodeModal";
+import { getCloudinaryImageUrl } from "../../utils/CloudinaryImageUrl";
 
 function CommunityView({
   communities = [],
@@ -97,22 +98,38 @@ function CommunityView({
                   className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-colors flex flex-col justify-between"
                 >
                   <div>
-                    <div
-                      className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${getAvatarColor ? getAvatarColor(server.name) : "from-indigo-500 to-purple-500"} flex items-center justify-center font-bold text-white text-2xl mb-4`}
-                    >
-                      {server.name ? server.name[0].toUpperCase() : "?"}
-                    </div>
+                    {server.iconUrl ? (
+                      <img
+                        src={getCloudinaryImageUrl(server.iconUrl, 160)}
+                        alt={server.name}
+                        className="w-16 h-16 rounded-2xl object-cover mb-4"
+                      />
+                    ) : (
+                      <div
+                        className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${
+                          getAvatarColor
+                            ? getAvatarColor(server.name)
+                            : "from-indigo-500 to-purple-500"
+                        } flex items-center justify-center font-bold text-white text-2xl mb-4`}
+                      >
+                        {server.name ? server.name[0].toUpperCase() : "?"}
+                      </div>
+                    )}
+
                     <h3 className="font-bold text-lg mb-1 text-gray-200">
                       {server.name}
                     </h3>
+
                     <p className="text-gray-400 text-sm mb-4 h-10 leading-relaxed">
                       {server.description || ""}
                     </p>
                   </div>
+
                   <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-2">
                     <span className="text-xs text-gray-500 font-medium">
                       {server.members?.toLocaleString() || 0} members
                     </span>
+
                     <button
                       className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors shadow-sm ${
                         server.joined

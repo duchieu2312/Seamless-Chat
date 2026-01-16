@@ -2,20 +2,27 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiCamera } from "react-icons/fi";
-import { toast } from "sonner";
 import React from "react";
-
-import axiosInstance from "../../../api/axiosInstance";
+import { toast } from "sonner";
 import { uploadAvatar } from "../../../api/cloudinary";
-import { getAvatarUrl } from "../../../utils/avatar";
+import { getCloudinaryImageUrl } from "../../../utils/CloudinaryImageUrl";
 
-function ProfileModal({ isOpen, user, getAvatarColor, onClose }) {
+function ProfileModal({
+  isOpen,
+  user,
+  getAvatarColor,
+  onClose,
+  onUpdateAvatar,
+  onUpdateProfile,
+  onUpdatePassword,
+}) {
   const fileInputRef = useRef(null);
 
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const [username, setUsername] = useState(user?.username || "");
+  const [nameError, setNameError] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -25,13 +32,14 @@ function ProfileModal({ isOpen, user, getAvatarColor, onClose }) {
     if (!isOpen) return;
 
     setUsername(user?.username || "");
+    setNameError(false);
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
   }, [isOpen, user]);
 
-  const handleAvatarChange = async (event) => {
-    const file = event.target.files?.[0];
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files?.[0];
 
     if (!file) return;
 
@@ -40,20 +48,14 @@ function ProfileModal({ isOpen, user, getAvatarColor, onClose }) {
 
       const avatarUrl = await uploadAvatar(file);
 
-      await axiosInstance.put("/users/me/avatar", {
-        avatarUrl,
-      });
+      const result = await onUpdateAvatar(avatarUrl);
 
-      toast.success("Avatar updated successfully.");
+      if (!result) return;
     } catch (err) {
-      toast.error(
-        err.response?.data?.message ||
-          err.message ||
-          "Failed to update avatar.",
-      );
+      toast.error(err.message || "Failed to upload avatar.");
     } finally {
       setIsUploading(false);
-      event.target.value = "";
+      e.target.value = "";
     }
   };
 
@@ -84,22 +86,35 @@ function ProfileModal({ isOpen, user, getAvatarColor, onClose }) {
       }
     }
 
-    try {
-      setIsSaving(true);
+    setIsSaving(true);
 
+    try {
       const profileChanged = trimmedUsername !== user?.username;
 
       if (profileChanged) {
-        await axiosInstance.put("/users/me/profile", {
+        const result = await onUpdateProfile({
           username: trimmedUsername,
         });
+
+        if (result === "USERNAME_TAKEN") {
+          setNameError(true);
+          return;
+        }
+
+        if (!result) {
+          return;
+        }
       }
 
       if (changingPassword) {
-        await axiosInstance.put("/users/me/password", {
+        const result = await onUpdatePassword({
           currentPassword,
           newPassword,
         });
+
+        if (!result) {
+          return;
+        }
       }
 
       toast.success("Profile updated successfully.");
@@ -109,12 +124,6 @@ function ProfileModal({ isOpen, user, getAvatarColor, onClose }) {
       setConfirmPassword("");
 
       onClose();
-    } catch (err) {
-      toast.error(
-        err.response?.data?.message ||
-          err.message ||
-          "Failed to update profile.",
-      );
     } finally {
       setIsSaving(false);
     }
@@ -167,7 +176,7 @@ function ProfileModal({ isOpen, user, getAvatarColor, onClose }) {
               <div className="relative">
                 {user?.avatarUrl ? (
                   <img
-                    src={getAvatarUrl(user.avatarUrl, 300)}
+                    src={getCloudinaryImageUrl(user.avatarUrl, 300)}
                     alt={user.username}
                     className="w-30 h-30 rounded-full object-cover"
                   />
@@ -218,10 +227,26 @@ function ProfileModal({ isOpen, user, getAvatarColor, onClose }) {
                 <input
                   type="text"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  onChange={(e) => {
+                    setUsername(e.target.value);
+
+                    if (nameError) {
+                      setNameError(false);
+                    }
+                  }}
                   disabled={isSaving || isUploading}
-                  className="w-full px-3 py-2.5 rounded-xl bg-[#0f172a] border border-white/10 text-sm text-white outline-none focus:border-indigo-500 disabled:opacity-50"
+                  className={`w-full px-3 py-2.5 rounded-xl bg-[#0f172a] border text-sm text-white outline-none disabled:opacity-50 ${
+                    nameError
+                      ? "border-red-500 focus:border-red-500"
+                      : "border-white/10 focus:border-indigo-500"
+                  }`}
                 />
+
+                {nameError && (
+                  <p className="mt-1.5 text-xs text-red-400">
+                    This username is already taken.
+                  </p>
+                )}
               </div>
 
               {/* Email */}

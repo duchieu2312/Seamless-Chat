@@ -37,6 +37,7 @@ import {
   getJoinedServers,
   getServerChannels,
   getServerMembers,
+  updateServerIcon,
   updateServerDetails,
   createNewServer,
   createChannel,
@@ -125,6 +126,11 @@ app.get(
   getServerChannels,
 );
 app.get("/api/servers/:serverId/members", authenticateToken, getServerMembers);
+app.put(
+  "/api/servers/:serverId/changeIcon",
+  authenticateToken,
+  updateServerIcon,
+);
 app.put(
   "/api/servers/:serverId/changeDetails",
   authenticateToken,
