@@ -1,4 +1,4 @@
-export function getCloudinaryImageUrl(imageUrl, size = 200) {
+export function getCloudinaryImageUrl(imageUrl, size = 300) {
   if (!imageUrl) return null;
 
   try {

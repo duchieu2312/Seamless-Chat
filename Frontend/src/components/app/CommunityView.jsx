@@ -100,7 +100,7 @@ function CommunityView({
                   <div>
                     {server.iconUrl ? (
                       <img
-                        src={getCloudinaryImageUrl(server.iconUrl, 160)}
+                        src={getCloudinaryImageUrl(server.iconUrl)}
                         alt={server.name}
                         className="w-16 h-16 rounded-2xl object-cover mb-4"
                       />

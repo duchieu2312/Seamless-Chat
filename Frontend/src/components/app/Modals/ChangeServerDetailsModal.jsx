@@ -157,7 +157,7 @@ function ChangeServerDetailsModal({
                 <div className="relative">
                   {iconUrl ? (
                     <img
-                      src={getCloudinaryImageUrl(iconUrl, 200)}
+                      src={getCloudinaryImageUrl(iconUrl)}
                       alt={server?.name || "Server icon"}
                       className="w-20 h-20 rounded-2xl object-cover"
                     />

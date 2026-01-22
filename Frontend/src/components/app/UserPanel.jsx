@@ -101,7 +101,7 @@ function UserPanel({
         <div className="relative flex-shrink-0">
           {user?.avatarUrl ? (
             <img
-              src={getCloudinaryImageUrl(user.avatarUrl, 100)}
+              src={getCloudinaryImageUrl(user.avatarUrl)}
               alt={user.username}
               className="w-10 h-10 rounded-full object-cover"
             />

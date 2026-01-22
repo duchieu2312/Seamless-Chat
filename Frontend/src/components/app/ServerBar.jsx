@@ -246,10 +246,7 @@ function ServerBar({
                         <div key={i} className="relative select-none">
                           {userInVoice.avatarUrl ? (
                             <img
-                              src={getCloudinaryImageUrl(
-                                userInVoice.avatarUrl,
-                                50,
-                              )}
+                              src={getCloudinaryImageUrl(userInVoice.avatarUrl)}
                               alt={userInVoice.username}
                               className="w-5 h-5 rounded-full object-cover border border-[#1e293b]"
                             />

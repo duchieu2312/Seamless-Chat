@@ -59,7 +59,7 @@ function SidebarMember({
         <div className="relative w-10 h-10 flex-shrink-0">
           {member.avatarUrl ? (
             <img
-              src={getCloudinaryImageUrl(member.avatarUrl, 100)}
+              src={getCloudinaryImageUrl(member.avatarUrl)}
               alt={member.username}
               className="w-10 h-10 rounded-full object-cover"
             />

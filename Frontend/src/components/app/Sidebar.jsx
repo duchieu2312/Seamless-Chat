@@ -83,7 +83,7 @@ function Sidebar({
               {/* Server Icon */}
               {server.iconUrl ? (
                 <img
-                  src={getCloudinaryImageUrl(server.iconUrl, 140)}
+                  src={getCloudinaryImageUrl(server.iconUrl)}
                   alt={server.name}
                   className="w-14 h-14 rounded-2xl object-cover"
                 />

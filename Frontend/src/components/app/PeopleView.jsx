@@ -206,7 +206,7 @@ function PeopleView({
                       <div className="relative flex-shrink-0">
                         {friend.avatarUrl ? (
                           <img
-                            src={getCloudinaryImageUrl(friend.avatarUrl, 120)}
+                            src={getCloudinaryImageUrl(friend.avatarUrl)}
                             alt={friend.username}
                             className="w-12 h-12 rounded-full object-cover"
                           />
@@ -310,7 +310,7 @@ function PeopleView({
                       <div className="relative flex-shrink-0">
                         {reqUser.avatarUrl ? (
                           <img
-                            src={getCloudinaryImageUrl(reqUser.avatarUrl, 120)}
+                            src={getCloudinaryImageUrl(reqUser.avatarUrl)}
                             alt={reqUser.username}
                             className="w-12 h-12 rounded-full object-cover"
                           />
@@ -389,7 +389,7 @@ function PeopleView({
                       <div className="relative flex-shrink-0">
                         {user.avatarUrl ? (
                           <img
-                            src={getCloudinaryImageUrl(user.avatarUrl, 120)}
+                            src={getCloudinaryImageUrl(user.avatarUrl)}
                             alt={user.username}
                             className="w-12 h-12 rounded-full object-cover"
                           />

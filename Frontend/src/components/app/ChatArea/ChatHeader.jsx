@@ -12,7 +12,7 @@ function ChatHeader({ channel, isDM, getAvatarColor, statusConfig }) {
         <div className="relative flex-shrink-0">
           {channel?.avatarUrl ? (
             <img
-              src={getCloudinaryImageUrl(channel.avatarUrl, 120)}
+              src={getCloudinaryImageUrl(channel.avatarUrl)}
               alt={channel.username}
               className="w-12 h-12 rounded-full object-cover"
             />

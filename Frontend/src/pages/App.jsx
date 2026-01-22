@@ -953,8 +953,8 @@ export default function App() {
     }
   }, []);
 
-  const handleJoinVoice = useCallback((channelId) => {
-    toast.info(`Joining voice channel... ${channelId}`);
+  const handleJoinVoice = useCallback(() => {
+    toast.info("Voice chat is currently under development.");
   }, []);
 
   // Message Action Events

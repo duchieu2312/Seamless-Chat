@@ -112,8 +112,8 @@ CREATE TABLE channel_messages (
 
 CREATE TABLE conversations (
 	id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-	user_one_id UUID,
-	user_two_id UUID,
+	user_one_id UUID NOT NULL,
+	user_two_id UUID NOT NULL,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	last_message_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 	user_one_last_read TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -125,12 +125,12 @@ CREATE TABLE conversations (
 	CONSTRAINT fk_user_one
 	FOREIGN KEY (user_one_id)
 	REFERENCES users(id)
-	ON DELETE SET NULL,
+	ON DELETE CASCADE,
 
 	CONSTRAINT fk_user_two
 	FOREIGN KEY (user_two_id)
 	REFERENCES users(id)
-	ON DELETE SET NULL
+	ON DELETE CASCADE
 );
 
 CREATE TABLE direct_messages (
@@ -148,7 +148,7 @@ CREATE TABLE direct_messages (
 	CONSTRAINT fk_dm_user
 	FOREIGN KEY (sender_id)
 	REFERENCES users(id)
-	ON DELETE SET NULL
+	ON DELETE CASCADE
 );
 
 CREATE TABLE channel_read_states (
@@ -174,7 +174,7 @@ CREATE TABLE refresh_tokens (
   user_id UUID NOT NULL,
   jti VARCHAR(64) NOT NULL UNIQUE,
   expires_at TIMESTAMPTZ NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
   CONSTRAINT fk_refresh_user
   FOREIGN KEY (user_id)
@@ -193,6 +193,5 @@ CREATE INDEX idx_direct_messages_conversation_id ON direct_messages(conversation
 CREATE INDEX idx_friendships_user_status ON friendships(user_id, status);
 CREATE INDEX idx_friendships_friend_status ON friendships(friend_id, status);
 -- refresh tokens
-CREATE INDEX idx_refresh_tokens_jti ON refresh_tokens(jti);
 CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
 CREATE INDEX idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);

@@ -77,7 +77,7 @@ function MemberActionModal({
               <div className="relative w-16 h-16 flex-shrink-0">
                 {member.avatarUrl ? (
                   <img
-                    src={getCloudinaryImageUrl(member.avatarUrl, 160)}
+                    src={getCloudinaryImageUrl(member.avatarUrl)}
                     alt={member.username}
                     className="w-16 h-16 rounded-full object-cover"
                   />

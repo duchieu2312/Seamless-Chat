@@ -176,7 +176,7 @@ function ProfileModal({
               <div className="relative">
                 {user?.avatarUrl ? (
                   <img
-                    src={getCloudinaryImageUrl(user.avatarUrl, 300)}
+                    src={getCloudinaryImageUrl(user.avatarUrl)}
                     alt={user.username}
                     className="w-30 h-30 rounded-full object-cover"
                   />

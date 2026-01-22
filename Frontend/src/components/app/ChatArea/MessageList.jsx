@@ -133,7 +133,7 @@ function MessageList({
         <div key={msg.id} className="flex gap-3">
           {msg.avatarUrl ? (
             <img
-              src={getCloudinaryImageUrl(msg.avatarUrl, 100)}
+              src={getCloudinaryImageUrl(msg.avatarUrl)}
               alt={msg.username}
               className="w-10 h-10 rounded-full object-cover"
             />

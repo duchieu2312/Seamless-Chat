@@ -147,7 +147,7 @@ function CreateServerModal({ isOpen, onClose, onCreateServer }) {
                 <div className="relative">
                   {iconUrl ? (
                     <img
-                      src={getCloudinaryImageUrl(iconUrl, 200)}
+                      src={getCloudinaryImageUrl(iconUrl)}
                       alt="Server icon"
                       className="w-20 h-20 rounded-2xl object-cover"
                     />
