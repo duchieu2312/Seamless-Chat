@@ -150,11 +150,9 @@ export async function loginUser(req, res) {
       [user.id],
     );
 
-    if (activeSession.rowCount > 0) {
-      return res.status(409).json({
-        message: "This account is already logged in on another device.",
-      });
-    }
+    await pool.query("DELETE FROM refresh_tokens WHERE user_id = $1", [
+      user.id,
+    ]);
 
     const accessToken = generateAccessToken(user.id);
     const { refreshToken } = await generateRefreshToken(user.id);
