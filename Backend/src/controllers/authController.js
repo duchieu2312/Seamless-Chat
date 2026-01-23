@@ -51,7 +51,7 @@ function setAuthCookies(res, accessToken, refreshToken) {
   res.cookie("token", accessToken, {
     httpOnly: true,
     secure: isProd,
-    sameSite: "lax",
+    sameSite: isProd ? "none" : "lax",
     path: "/",
     maxAge: ACCESS_MAX_AGE,
   });
