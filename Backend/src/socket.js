@@ -2,10 +2,6 @@ import pool from "./config/db.js";
 import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import cookie from "cookie";
-import {
-  sendDMMessage,
-  sendChannelMessage,
-} from "./controllers/messageController.js";
 
 let io;
 
