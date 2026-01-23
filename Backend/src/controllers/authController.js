@@ -59,7 +59,7 @@ function setAuthCookies(res, accessToken, refreshToken) {
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
     secure: isProd,
-    sameSite: "lax",
+    sameSite: isProd ? "none" : "lax",
     path: "/",
     maxAge: REFRESH_MAX_AGE,
   });
@@ -208,13 +208,13 @@ export async function refreshToken(req, res) {
     res.clearCookie("token", {
       httpOnly: true,
       secure: isProd,
-      sameSite: "lax",
+      sameSite: isProd ? "none" : "lax",
       path: "/",
     });
     res.clearCookie("refreshToken", {
       httpOnly: true,
       secure: isProd,
-      sameSite: "lax",
+      sameSite: isProd ? "none" : "lax",
       path: "/",
     });
     return res
@@ -246,13 +246,13 @@ export async function logoutUser(req, res) {
   res.clearCookie("token", {
     httpOnly: true,
     secure: isProd,
-    sameSite: "lax",
+    sameSite: isProd ? "none" : "lax",
     path: "/",
   });
   res.clearCookie("refreshToken", {
     httpOnly: true,
     secure: isProd,
-    sameSite: "lax",
+    sameSite: isProd ? "none" : "lax",
     path: "/",
   });
 
