@@ -443,7 +443,10 @@ export default function App() {
 
     const currentUserId = user.id;
 
-    socketRef.current = io("http://localhost:5000", { withCredentials: true });
+    const SOCKET_URL =
+      import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
+
+    socketRef.current = io(SOCKET_URL, { withCredentials: true });
 
     // Handle real-time incoming messages (DMs and Channel chats)
     socketRef.current.on("receive_message", (incomingMsg) => {
