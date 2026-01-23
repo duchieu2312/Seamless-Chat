@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import LoginForm from "../components/auth/LoginForm";
 import RegisterForm from "../components/auth/RegisterForm";
 import AuthBanner from "../components/auth/AuthBanner";
+import BackendWarning from "../components/auth/BackendWarning";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -30,6 +31,7 @@ export default function Auth() {
         <LoginForm isVisible={isLogin} />
         <RegisterForm isVisible={!isLogin} />
       </div>
+      <BackendWarning />
     </div>
   );
 }

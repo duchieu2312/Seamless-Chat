@@ -70,7 +70,7 @@ export const initSocket = (server) => {
             [socket.userId],
           );
 
-          socket.emit("user_status_changed", {
+          io.emit("user_status_changed", {
             userId: socket.userId,
             status: result.rows[0].status,
           });
