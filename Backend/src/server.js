@@ -59,8 +59,12 @@ import {
 // SETUP
 const app = express();
 const server = createServer(app);
-initSocket(server);
 
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
+
+initSocket(server);
 app.use(helmet());
 app.use(
   cors({
