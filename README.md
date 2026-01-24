@@ -369,14 +369,13 @@ Cloudinary configuration is needed to upload avatars and community/server icons.
 
 ### 4. Set Up PostgreSQL
 
-Create a PostgreSQL database and run the SQL files in this order:
+Create a PostgreSQL database and run `Backend/src/database/schema.sql` to create the required tables and schema.
 
-1. `Backend/src/database/schema.sql`
-2. `Backend/src/database/seed.sql` — optional, for inserting the supplied seed data.
+Set `DATABASE_URL` to the connection string of your PostgreSQL database.
 
-Set `DATABASE_URL` to the connection string of the database you want to use.
+For production, configure `DATABASE_URL` with the connection string provided by Neon.
 
-For production, configure `DATABASE_URL` with the connection string from Neon.
+**Note:** Seed data is not included in this repository.
 
 ### 5. Start the Application
 
