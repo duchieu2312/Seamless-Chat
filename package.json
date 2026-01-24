@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "server": "cd backend && npm run dev",
-    "client": "cd frontend && npm run dev",
+    "server": "cd Backend && npm run dev",
+    "client": "cd Frontend && npm run dev",
     "dev": "concurrently --kill-others \"npm run server\" \"npm run client\""
   },
   "repository": {
